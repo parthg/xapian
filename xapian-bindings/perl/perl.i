@@ -3,7 +3,7 @@
 /* perl.i: SWIG interface file for the Perl bindings
  *
  * Copyright (C) 2009 Kosei Moriyama
- * Copyright (C) 2011,2012 Olly Betts
+ * Copyright (C) 2011,2012,2013 Olly Betts
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -21,6 +21,9 @@
  * USA
  */
 %}
+
+/* The XS Search::Xapian never wrapped these, and they're now deprecated. */
+#define XAPIAN_BINDINGS_SKIP_DEPRECATED_DB_FACTORIES
 
 %include ../xapian-head.i
 
@@ -179,6 +182,17 @@ bool nequal1(Xapian::PositionIterator * that) {
 }
 }
 
+/* Xapian::PostingIterator */
+%extend Xapian::PostingIterator {
+bool equal(Xapian::PostingIterator * that) {
+     return ((*self) == (*that));
+}
+
+bool nequal(Xapian::PostingIterator * that) {
+     return ((*self) != (*that));
+}
+}
+
 /* Xapian::Query */
 %feature("shadow") Xapian::Query::Query
 %{
@@ -265,7 +279,7 @@ class XapianSWIGQueryItor {
     }
 
     Xapian::Query operator*() const {
-        SV **svp = av_fetch(array, i, NULL);
+        SV **svp = av_fetch(array, i, 0);
         if( svp == NULL )
             croak("Unexpected NULL returned by av_fetch()");
         SV *sv = *svp;
@@ -439,4 +453,4 @@ Xapian::WritableDatabase * new3_WritableDatabase() {
 
 %include util.i
 %include except.i
-%include ../xapian.i
+%include ../xapian-headers.i

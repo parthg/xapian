@@ -1,7 +1,7 @@
 /** @file brass_version.cc
  * @brief BrassVersion class
  */
-/* Copyright (C) 2006,2007,2008,2009,2010 Olly Betts
+/* Copyright (C) 2006,2007,2008,2009,2010,2013 Olly Betts
  * Copyright (C) 2011 Dan Colish
  *
  * This program is free software; you can redistribute it and/or modify
@@ -28,23 +28,22 @@
 #include "brass_version.h"
 #include "io_utils.h"
 #include "omassert.h"
+#include "posixy_wrapper.h"
 #include "stringutils.h" // For STRINGIZE() and CONST_STRLEN().
 #include "str.h"
 
-#ifdef __WIN32__
-# include "msvc_posix_wrapper.h"
-#endif
-
-#include <cstdio> // For rename().
 #include <cstring> // For memcmp() and memcpy().
 #include <string>
 
 #include "common/safeuuid.h"
 
+#include "xapian/constants.h"
+
 using namespace std;
 
 // YYYYMMDDX where X allows multiple format revisions in a day
-#define BRASS_VERSION 201103110
+#define BRASS_VERSION 201311060
+// 201311060 1.3.2 Order position table by term first
 // 201103110 1.2.5 Bump for new max changesets dbstats
 // 200912150 1.1.4 Brass debuts.
 
@@ -60,7 +59,7 @@ using namespace std;
 #define VERSIONFILE_SIZE_LITERAL 28
 
 void
-BrassVersion::create()
+BrassVersion::create(int flags)
 {
     char buf[VERSIONFILE_SIZE] = MAGIC_STRING;
     unsigned char *v = reinterpret_cast<unsigned char *>(buf) + MAGIC_LEN;
@@ -72,7 +71,7 @@ BrassVersion::create()
     uuid_generate(uuid);
     memcpy(buf + MAGIC_LEN + 4, (void*)uuid, 16);
 
-    int fd = ::open(filename.c_str(), O_WRONLY|O_CREAT|O_TRUNC|O_BINARY, 0666);
+    int fd = ::open(filename.c_str(), O_WRONLY|O_CREAT|O_TRUNC|O_BINARY|O_CLOEXEC, 0666);
 
     if (fd < 0) {
 	string msg("Failed to create brass version file: ");
@@ -87,6 +86,8 @@ BrassVersion::create()
 	throw;
     }
 
+    if ((flags & Xapian::DB_NO_SYNC) == 0)
+	io_sync(fd);
     if (close(fd) != 0) {
 	string msg("Failed to create brass version file: ");
 	msg += filename;
@@ -97,7 +98,7 @@ BrassVersion::create()
 void
 BrassVersion::read_and_check()
 {
-    int fd = ::open(filename.c_str(), O_RDONLY|O_BINARY);
+    int fd = ::open(filename.c_str(), O_RDONLY|O_BINARY|O_CLOEXEC);
 
     if (fd < 0) {
 	string msg = filename;

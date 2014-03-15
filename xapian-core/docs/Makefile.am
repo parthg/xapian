@@ -2,7 +2,7 @@
 
 if MAINTAINER_MODE
 # Export these so that we run the locally installed autotools when building
-# from a bootstrapped SVN tree.
+# from a bootstrapped git tree.
 export ACLOCAL AUTOCONF AUTOHEADER AUTOM4TE AUTOMAKE
 endif
 
@@ -50,7 +50,7 @@ RSTHTML = $(RSTDOCS:.rst=.html)
 EXTRA_DIST = doxygen_api.conf.in doxygen_source.conf.in \
 	doxygen_api_header.html_tmpl doxygen_api_footer.html_tmpl \
 	doxygen_source_header.html_tmpl doxygen_source_footer.html_tmpl \
-	$(RSTDOCS) \
+	$(RSTDOCS) $(HTMLDOCS) $(RSTHTML) apidoc.pdf \
 	dir_contents
 
 # Other files which should be distributed
@@ -71,11 +71,10 @@ dist-hook: doxygen_api_docs
 	test "`echo apidoc/html/*.html`" = "apidoc/html/*.html" || \
 	  cp -p apidoc/html/*.html $(distdir)/apidoc/html
 
+# Disable these rules if configured with --enable-maintainer-mode and
+# --disable-documentation so that "make install" works in this case.
 if !MAINTAINER_NO_DOCS
-# Build API docs with doxygen
-all-local: doxygen_api_docs
-
-dist_doc_DATA = $(HTMLDOCS) $(RSTHTML) apidoc.pdf
+doc_DATA = $(HTMLDOCS) $(RSTHTML) apidoc.pdf
 
 install-data-local: doxygen_api_docs
 	$(mkinstalldirs) $(DESTDIR)$(docdir)/apidoc/html
@@ -108,6 +107,9 @@ doxygen_api_docs: apidoc/html/index.html
 doxygen_docs: doxygen_source_docs doxygen_api_docs
 
 if DOCUMENTATION_RULES
+# Build API docs with doxygen
+all-local: doxygen_api_docs
+
 # We use $T instead of $(top_srcdir) in APIDOC_SRC, SOURCEDOC_SRC, and
 # DIR_CONTENTS_FILES to keep their sizes down.
 T=$(top_srcdir)
@@ -152,5 +154,5 @@ sourcedoc/html/index.html: $(SOURCEDOC_SRC) $(APIDOC_SRC) \
 	top_srcdir=$(top_srcdir) top_builddir=$(top_builddir) $(DOXYGEN) doxygen_source.conf
 
 .rst.html:
-	$(RST2HTML) --exit-status=warning $< $@
+	$(RST2HTML) --math-output=HTML --exit-status=warning $< $@
 endif

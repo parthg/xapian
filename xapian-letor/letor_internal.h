@@ -29,7 +29,6 @@
 
 using namespace std;
 
-
 namespace Xapian {
 
 class Letor::Internal : public Xapian::Internal::intrusive_base {
@@ -44,7 +43,6 @@ class Letor::Internal : public Xapian::Internal::intrusive_base {
     std::map<Xapian::docid, double>  letor_score(const Xapian::MSet & mset);
 
     void letor_learn_model();
-
     void prepare_training_file(const std::string & query_file, const std::string & qrel_file, Xapian::doccount msetsize);
     
     void prepare_training_file_listwise(const std::string & query_file, int num_features);

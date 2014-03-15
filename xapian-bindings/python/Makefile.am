@@ -2,12 +2,16 @@
 
 include ../generic/generic.mk
 
-TESTS_ENVIRONMENT = trap 'rm -f "$(srcdir)"/*.pyc' 0 1 2 13 15; \
-    PYTHONPATH=".:$$PYTHONPATH" PYTHONDONTWRITEBYTECODE=1 \
-    abs_builddir=@abs_builddir@ $(PYTHON)
-
 ## Test programs to be run
 TESTS = smoketest.py pythontest.py
+AM_TESTS_ENVIRONMENT = \
+	abs_builddir='$(abs_builddir)' ;\
+	srcdir='$(srcdir)' ;\
+	PYTHON='$(PYTHON2)' ;\
+	export abs_builddir ;\
+	export srcdir ;\
+	export PYTHON ;
+LOG_COMPILER = '$(srcdir)'/run-python-test
 
 # FIXME: replicationtest.py attempts to test performing replication whilst
 # modifications are in progress.  However, it sometimes fails due to a race
@@ -19,19 +23,22 @@ TESTS = smoketest.py pythontest.py
 BUILT_SOURCES = modern/xapian_wrap.cc modern/xapian_wrap.h modern/xapian.py
 
 EXTRA_DIST = python.i util.i extra.i extracomments.i except.i \
+	generate-python-exceptions \
 	module_top.py \
-	testsuite.py testsuite2.py testsuite3.py \
+	run-python-test \
+	testsuite.py \
 	test_xapian_star.py \
-	smoketest2.py smoketest3.py \
-	pythontest2.py pythontest3.py \
-	replicationtest2.py \
+	replicationtest.py \
+	docs/index.rst \
 	$(TESTS) $(BUILT_SOURCES)
 
-pkgpylibdir = @PYTHON_LIB@/xapian
+pkgpylibdir = @PYTHON2_LIB@/xapian
 
 # Install as _DATA rather than _SCRIPTS because we don't want to make these
 # executable (they don't have a #! line).
-pkgpylib_DATA = xapian/__init__.py xapian/__init__.pyc xapian/__init__.pyo
+pkgpylib_DATA = xapian/__init__.py \
+		xapian/__init__.pyc \
+		xapian/__init__.pyo
 
 pkgpylib_LTLIBRARIES = _xapian.la
 
@@ -44,13 +51,13 @@ install-data-hook:
 # Because we don't install the .la file, "make uninstall" doesn't work and
 # we need to remove the file ourselves.
 uninstall-local:
-	rm -f $(DESTDIR)$(pkgpylibdir)/_xapian$(PYTHON_SO)
+	rm -f $(DESTDIR)$(pkgpylibdir)/_xapian$(PYTHON2_SO)
 
-AM_CPPFLAGS = -I$(PYTHON_INC)
+AM_CPPFLAGS = -I$(PYTHON2_INC)
 AM_CXXFLAGS = $(SWIG_CXXFLAGS) $(XAPIAN_CXXFLAGS)
-_xapian_la_LDFLAGS = -avoid-version -module -shrext "$(PYTHON_SO)" $(NO_UNDEFINED)
+_xapian_la_LDFLAGS = -avoid-version -module -shrext "$(PYTHON2_SO)" $(NO_UNDEFINED)
 _xapian_la_SOURCES = modern/xapian_wrap.cc
-_xapian_la_LIBADD = $(XAPIAN_LIBS) $(PYTHON_LIBS)
+_xapian_la_LIBADD = $(XAPIAN_LIBS) $(PYTHON2_LIBS)
 
 # In a distribution, xapian.py is in $(srcdir)/modern, and python will always
 # generate the .pyc and .pyo files in the same directory as the .py file.
@@ -66,24 +73,24 @@ xapian/__init__.py: modern/xapian.py
 	mv xapian/__init__.pyT xapian/__init__.py
 
 # We "import _xapian" first so that if we fail to import the glue library
-# we don't generate a broken __init__.pyc or __init__.pyo.
-xapian/__init__.pyc: xapian/__init__.py xapian/_xapian$(PYTHON_SO)
-	PYTHONPATH="xapian:$$PYTHONPATH" $(PYTHON) -c "import _xapian"
-	PYTHONPATH=".:$$PYTHONPATH" $(PYTHON) -c "import xapian"
+# we don't generate a broken .pyc or .pyo.
+xapian/__init__.pyc: xapian/__init__.py xapian/_xapian$(PYTHON2_SO)
+	PYTHONPATH="xapian:$$PYTHONPATH" $(PYTHON2) -c "import _xapian"
+	PYTHONPATH=".:$$PYTHONPATH" $(PYTHON2) -c "import xapian"
 
-xapian/__init__.pyo: xapian/__init__.py xapian/_xapian$(PYTHON_SO)
-	PYTHONPATH="xapian:$$PYTHONPATH" $(PYTHON) -O -c "import _xapian"
-	PYTHONPATH=".:$$PYTHONPATH" $(PYTHON) -O -c "import xapian"
+xapian/__init__.pyo: xapian/__init__.py xapian/_xapian$(PYTHON2_SO)
+	PYTHONPATH="xapian:$$PYTHONPATH" $(PYTHON2) -O -c "import _xapian"
+	PYTHONPATH=".:$$PYTHONPATH" $(PYTHON2) -O -c "import xapian"
 
-xapian/_xapian$(PYTHON_SO): _xapian.la
+xapian/_xapian$(PYTHON2_SO): _xapian.la
 	-test -d xapian || mkdir xapian
 	$(LIBTOOL) --config > libtoolconfig.tmp
 ## ksh requires a path on the sourced file.
-	. ./libtoolconfig.tmp; cp $$objdir/_xapian$(PYTHON_SO) xapian
+	. ./libtoolconfig.tmp; cp $$objdir/_xapian$(PYTHON2_SO) xapian
 	rm -f libtoolconfig.tmp
 
 CLEANFILES = \
-    xapian/_xapian$(PYTHON_SO) \
+    xapian/_xapian$(PYTHON2_SO) \
     xapian/__init__.py xapian/__init__.pyc xapian/__init__.pyo \
     $(srcdir)/*.pyc
 
@@ -94,10 +101,6 @@ clean-local:
 	rm -rf db_test_* dbs_replication
 
 if MAINTAINER_MODE
-# We need to explicitly set -outdir because on Windows, SWIG splits paths at
-# "\" when extracting the output directory from the value passed to the -o
-# option.
-
 BUILT_SOURCES += except.i doccomments.i
 except.i: $(srcdir)/generate-python-exceptions ../../xapian-core/exception_data.pm
 	$(PERL) -w -I$(srcdir)/../../xapian-core $(srcdir)/generate-python-exceptions
@@ -110,22 +113,27 @@ doccomments.i: doxy2swig.py ../../xapian-core/exception_data.pm ../doxygen-xml/i
 	$(PYTHON) $(srcdir)/doxy2swig.py ../doxygen-xml/index.xml doccomments.i
 endif
 
-modern/xapian_wrap.cc modern/xapian_wrap.h modern/xapian.py modern/xapian_wrap.d: modern/xapian_wrap.stamp
-	@stamp=modern/xapian_wrap.stamp; $(make_many_locked)
-modern/xapian_wrap.stamp: except.i doccomments.i
+# We need to explicitly set -outdir because on Windows, SWIG splits paths at
+# "\" when extracting the output directory from the value passed to the -o
+# option.
+
+stamp = modern/xapian_wrap.stamp
+RUN_SWIG = stamp='$(stamp)' $(PERL) '$(top_srcdir)'/swig-depcomp $(SWIG)
+
+modern/xapian_wrap.cc modern/xapian_wrap.h modern/xapian.py modern/xapian_wrap.d: $(stamp)
+	$(make_many_locked)
+$(stamp): except.i doccomments.i
 	-test -d modern || mkdir modern
 	$(multitarget_begin)
-	$(SWIG) $(SWIG_WERROR) -I. -I'$(srcdir)' $(SWIG_FLAGS) -c++ \
+	$(RUN_SWIG) $(SWIG_WERROR) -I. -I'$(srcdir)' $(SWIG_FLAGS) -c++ \
 	    -python -threads -shadow -modern -O -outdir modern \
-	    -o modern/xapian_wrap.cc -MD -MF modern/xapian_wrap_d.tmp '$(srcdir)/'python.i
-	$(PERL) -pi -e 's!modern/xapian_wrap.cc:!modern/xapian_wrap.stamp:!' modern/xapian_wrap_d.tmp
-	mv modern/xapian_wrap_d.tmp modern/xapian_wrap.d
+	    -o modern/xapian_wrap.cc '$(srcdir)/'python.i
 	$(PERL) -pi -e 's/class Error:/class Error(Exception):/' modern/xapian.py
 	$(multitarget_end)
 
 -include modern/xapian_wrap.d
 
-CLEANFILES += modern/xapian_wrap.d modern/xapian_wrap.stamp
+CLEANFILES += modern/xapian_wrap.d $(stamp)
 endif
 MAINTAINERCLEANFILES = $(BUILT_SOURCES)
 
@@ -137,4 +145,12 @@ dist_exampledata_DATA = \
 	docs/examples/simplesearch.py
 
 docdatadir = $(docdir)/python
-dist_docdata_DATA = docs/index.html
+
+if DOCUMENTATION_RULES
+docdata_DATA = docs/index.html
+BUILT_SOURCES += docs/index.html
+
+.rst.html:
+	-case "$@" in */*) d=`echo "$@"|sed 's,/[^/]*$$,,'`; test -d "$$d" || mkdir "$$d" ;; esac
+	$(RST2HTML) --exit-status=warning $< $@
+endif

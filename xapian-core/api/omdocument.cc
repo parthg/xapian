@@ -2,7 +2,7 @@
  *
  * Copyright 1999,2000,2001 BrightStation PLC
  * Copyright 2002 Ananova Ltd
- * Copyright 2003,2004,2006,2007,2008,2009,2011 Olly Betts
+ * Copyright 2003,2004,2006,2007,2008,2009,2011,2013 Olly Betts
  * Copyright 2009 Lemur Consulting Ltd
  *
  * This program is free software; you can redistribute it and/or
@@ -30,6 +30,7 @@
 #include "maptermlist.h"
 #include "net/serialise.h"
 #include "str.h"
+#include "unicode/description_append.h"
 
 #include <xapian/error.h>
 #include <xapian/types.h>
@@ -248,8 +249,8 @@ OmDocumentTerm::remove_position(Xapian::termpos tpos)
     vector<Xapian::termpos>::iterator i;
     i = lower_bound(positions.begin(), positions.end(), tpos);
     if (i == positions.end() || *i != tpos) {
-	throw Xapian::InvalidArgumentError("Position `" + str(tpos) +
-				     "' not found in list of positions that `" +
+	throw Xapian::InvalidArgumentError("Position '" + str(tpos) +
+				     "' not found in list of positions that '" +
 				     tname +
 				     "' occurs at,"
 				     " when removing position from list");
@@ -261,11 +262,13 @@ string
 OmDocumentTerm::get_description() const
 {
     string description;
-
-    description = "OmDocumentTerm(" + tname +
-	    ", wdf = " + str(wdf) +
-	    ", positions[" + str(positions.size()) + "]" +
-	    ")";
+    description = "OmDocumentTerm(";
+    description_append(description, tname);
+    description += ", wdf = ";
+    description += str(wdf);
+    description += ", positions[";
+    description += str(positions.size());
+    description += "])";
     return description;
 }
 
@@ -285,6 +288,7 @@ Xapian::Document::Internal::get_value(Xapian::valueno slot) const
 string
 Xapian::Document::Internal::get_data() const
 {
+    LOGCALL(DB, string, "Xapian::Document::Internal::get_data", NO_ARGS);
     if (data_here) return data;
     if (!database.get()) return string();
     return do_get_data();
@@ -385,7 +389,7 @@ Xapian::Document::Internal::remove_posting(const string & tname,
     map<string, OmDocumentTerm>::iterator i;
     i = terms.find(tname);
     if (i == terms.end()) {
-	throw Xapian::InvalidArgumentError("Term `" + tname +
+	throw Xapian::InvalidArgumentError("Term '" + tname +
 		"' is not present in document, in "
 		"Xapian::Document::Internal::remove_posting()");
     }
@@ -401,7 +405,7 @@ Xapian::Document::Internal::remove_term(const string & tname)
     map<string, OmDocumentTerm>::iterator i;
     i = terms.find(tname);
     if (i == terms.end()) {
-	throw Xapian::InvalidArgumentError("Term `" + tname +
+	throw Xapian::InvalidArgumentError("Term '" + tname +
 		"' is not present in document, in "
 		"Xapian::Document::Internal::remove_term()");
     }
@@ -464,7 +468,7 @@ Xapian::Document::Internal::get_description() const
 {
     string description = "Xapian::Document::Internal(";
 
-    if (data_here) description += "data=`" + data + "'";
+    if (data_here) description += "data='" + data + "'";
 
     if (values_here) {
 	if (data_here) description += ", ";

@@ -1,7 +1,7 @@
 /** @file localsubmatch.cc
  *  @brief SubMatch class for a local database.
  */
-/* Copyright (C) 2006,2007,2009,2010,2011 Olly Betts
+/* Copyright (C) 2006,2007,2009,2010,2011,2013,2014 Olly Betts
  * Copyright (C) 2007,2008,2009 Lemur Consulting Ltd
  *
  * This program is free software; you can redistribute it and/or modify
@@ -105,7 +105,8 @@ LocalSubMatch::make_synonym_postlist(PostList * or_pl, MultiMatch * matcher,
 {
     LOGCALL(MATCH, PostList *, "LocalSubMatch::make_synonym_postlist", or_pl | matcher | factor);
     LOGVALUE(MATCH, or_pl->get_termfreq_est());
-    AutoPtr<SynonymPostList> res(new SynonymPostList(or_pl, matcher));
+    Xapian::termcount len_lb = db->get_doclength_lower_bound();
+    AutoPtr<SynonymPostList> res(new SynonymPostList(or_pl, matcher, len_lb));
     AutoPtr<Xapian::Weight> wt(wt_factory->clone());
 
     TermFreqs freqs;
@@ -117,7 +118,8 @@ LocalSubMatch::make_synonym_postlist(PostList * or_pl, MultiMatch * matcher,
     if (usual(stats->collection_size != 0)) {
 	freqs = or_pl->get_termfreq_est_using_stats(*stats);
     }
-    wt->init_(*stats, qlen, factor, freqs.termfreq, freqs.reltermfreq);
+    wt->init_(*stats, qlen, factor,
+	      freqs.termfreq, freqs.reltermfreq, freqs.collfreq);
 
     res->set_weight(wt.release());
     RETURN(res.release());
@@ -133,9 +135,9 @@ LocalSubMatch::make_wt(const string& term, Xapian::termcount wqf, double factor)
 }
 
 LeafPostList *
-LocalSubMatch::open_post_list(const string& term, double max_part)
+LocalSubMatch::open_post_list(LeafPostList ** hint, const string& term, double max_part)
 {
-    LOGCALL(MATCH, LeafPostList *, "LocalSubMatch::open_post_list", term | max_part);
+    LOGCALL(MATCH, LeafPostList *, "LocalSubMatch::open_post_list", hint | term | max_part);
     if (term_info) {
 	Xapian::doccount tf = stats->get_termfreq(term);
 	using namespace Xapian;
@@ -146,5 +148,20 @@ LocalSubMatch::open_post_list(const string& term, double max_part)
 	i->second.termweight += max_part;
     }
 
-    RETURN(db->open_post_list(term));
+    if (!term.empty() &&
+	max_part == 0.0 &&
+	db->get_termfreq(term) == db->get_doccount()) {
+	// If we're not going to use the wdf and the term indexes all
+	// documents, we can replace it with the MatchAll postlist, which
+	// is especially efficient if there are no gaps in the docids.
+	RETURN(db->open_post_list(string()));
+    }
+
+    LeafPostList * res = NULL;
+    if (*hint)
+	res = (*hint)->open_nearby_postlist(term);
+    if (!res)
+	res = db->open_post_list(term);
+    *hint = res;
+    RETURN(res);
 }

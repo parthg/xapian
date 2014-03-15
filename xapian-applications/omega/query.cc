@@ -4,7 +4,7 @@
  * Copyright 2001 James Aylett
  * Copyright 2001,2002 Ananova Ltd
  * Copyright 2002 Intercede 1749 Ltd
- * Copyright 2002,2003,2004,2005,2006,2007,2008,2009,2010,2011 Olly Betts
+ * Copyright 2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2013,2014 Olly Betts
  * Copyright 2008 Thomas Viehmann
  *
  * This program is free software; you can redistribute it and/or
@@ -24,6 +24,11 @@
  */
 
 #include <config.h>
+
+// If we're building against git after the expand API changed but before the
+// version gets bumped to 1.3.2, we'll get a deprecation warning from
+// get_eset() unless we suppress such warnings here.
+#define XAPIAN_DEPRECATED(D) D
 
 #include <algorithm>
 #include <iostream>
@@ -51,11 +56,13 @@
 
 #include "date.h"
 #include "datematchdecider.h"
+#include "jsonescape.h"
 #include "utils.h"
 #include "omega.h"
 #include "query.h"
 #include "cgiparam.h"
 #include "loadfile.h"
+#include "sample.h"
 #include "str.h"
 #include "stringutils.h"
 #include "transform.h"
@@ -64,6 +71,7 @@
 #include "unixperm.h"
 #include "values.h"
 #include "weight.h"
+#include "expand.h"
 
 #include <xapian.h>
 
@@ -863,6 +871,8 @@ CMD_httpheader,
 CMD_id,
 CMD_if,
 CMD_include,
+CMD_json,
+CMD_jsonarray,
 CMD_last,
 CMD_lastpage,
 CMD_le,
@@ -913,6 +923,7 @@ CMD_time,
 CMD_topdoc,
 CMD_topterms,
 CMD_transform,
+CMD_truncate,
 CMD_uniq,
 CMD_unpack,
 CMD_unstem,
@@ -983,6 +994,8 @@ T(httpheader,      2, 2, N, 0), // arbitrary HTTP header
 T(id,		   0, 0, N, 0), // docid of current doc
 T(if,		   2, 3, 1, 0), // conditional
 T(include,	   1, 1, 1, 0), // include another file
+T(json,		   1, 1, N, 0), // JSON string escaping
+T(jsonarray,	   1, 1, N, 0), // Format list as a JSON array of strings
 T(last,		   0, 0, N, M), // m-set number of last hit on page
 T(lastpage,	   0, 0, N, M), // number of last hit page
 T(le,		   2, 2, N, 0), // test <=
@@ -1035,6 +1048,7 @@ T(topdoc,	   0, 0, N, M), // first document on current page of hit list
 T(topterms,	   0, 1, N, M), // list of up to N top relevance feedback terms
 				// (default 16)
 T(transform,	   3, 3, N, 0), // transform with a regexp
+T(truncate,	   2, 4, N, 0), // truncate after a word
 T(uniq,		   1, 1, N, 0), // removed duplicates from a sorted list
 T(unpack,	   1, 1, N, 0), // convert 4 byte big endian binary string to a number
 T(unstem,	   1, 1, N, Q), // return list of probabilistic terms from
@@ -1088,7 +1102,7 @@ eval(const string &fmt, const vector<string> &param)
 	unsigned char ch = fmt[q];
 	switch (ch) {
 	    // Magic sequences:
-	    // `$$' -> `$', `$(' -> `{', `$)' -> `}', `$.' -> `,'
+	    // '$$' -> '$', '$(' -> '{', '$)' -> '}', '$.' -> ','
 	    case '$':
 		res += '$';
 		p = q + 1;
@@ -1135,7 +1149,7 @@ eval(const string &fmt, const vector<string> &param)
 	map<string, const struct func_attrib *>::const_iterator func;
 	func = func_map.find(var);
 	if (func == func_map.end()) {
-	    throw "Unknown function `" + var + "'";
+	    throw "Unknown function '" + var + "'";
 	}
 	vector<string> args;
 	if (fmt[p] == '{') {
@@ -1311,7 +1325,7 @@ eval(const string &fmt, const vector<string> &param)
 	    }
 	    case CMD_error:
 		if (error_msg.empty() && enquire == NULL && !dbname.empty()) {
-		    error_msg = "Database `" + dbname + "' couldn't be opened";
+		    error_msg = "Database '" + dbname + "' couldn't be opened";
 		}
 		value = error_msg;
 		break;
@@ -1517,6 +1531,30 @@ eval(const string &fmt, const vector<string> &param)
 	    case CMD_include:
 	        value = eval_file(args[0]);
 	        break;
+	    case CMD_json:
+		value = args[0];
+		json_escape(value);
+		break;
+	    case CMD_jsonarray: {
+		const string & l = args[0];
+		string::size_type i = 0, j;
+		if (l.empty()) {
+		    value = "[]";
+		    break;
+		}
+		value = "[\"]";
+		while (true) {
+		    j = l.find('\t', i);
+		    string elt(l, i, j - i);
+		    json_escape(elt);
+		    value += elt;
+		    if (j == string::npos) break;
+		    value += "\",\"";
+		    i = j + 1;
+		}
+		value += "\"]";
+		break;
+	    }
 	    case CMD_last:
 		value = str(last);
 		break;
@@ -1960,7 +1998,13 @@ eval(const string &fmt, const vector<string> &param)
 		    OmegaExpandDecider decider(db, &termset);
 
 		    if (!rset.empty()) {
+			set_expansion_scheme(*enquire, option);
+#if XAPIAN_AT_LEAST(1,3,2)
 			eset = enquire->get_eset(howmany * 2, rset, &decider);
+#else
+			eset = enquire->get_eset(howmany * 2, rset, 0,
+						 expand_param_k, &decider);
+#endif
 		    } else if (mset.size()) {
 			// invent an rset
 			Xapian::RSet tmp;
@@ -1973,7 +2017,13 @@ eval(const string &fmt, const vector<string> &param)
 			    if (--c == 0) break;
 			}
 
+			set_expansion_scheme(*enquire, option);
+#if XAPIAN_AT_LEAST(1,3,2)
 			eset = enquire->get_eset(howmany * 2, tmp, &decider);
+#else
+			eset = enquire->get_eset(howmany * 2, tmp, 0,
+						 expand_param_k, &decider);
+#endif
 		    }
 
 		    // Don't show more than one word with the same stem.
@@ -1993,6 +2043,12 @@ eval(const string &fmt, const vector<string> &param)
 		break;
 	    case CMD_transform:
 		omegascript_transform(value, args);
+		break;
+	    case CMD_truncate:
+		value = generate_sample(args[0],
+					string_to_int(args[1]),
+					args.size() > 2 ? args[2] : string(),
+					args.size() > 3 ? args[3] : string());
 		break;
 	    case CMD_uniq: {
 		const string &list = args[0];
@@ -2050,7 +2106,7 @@ eval(const string &fmt, const vector<string> &param)
 		args.insert(args.begin(), param[0]);
 		int macro_no = func->second->tag - CMD_MACRO;
 		assert(macro_no >= 0 && (unsigned int)macro_no < macros.size());
-		// throw "Unknown function `" + var + "'";
+		// throw "Unknown function '" + var + "'";
 		value = eval(macros[macro_no], args);
 		break;
 	    }
@@ -2080,11 +2136,11 @@ eval_file(const string &fmtfile)
 	}
 	err = strerror(errno);
     } else {
-	err = "name contains `..'";
+	err = "name contains '..'";
     }
 
     // FIXME: report why!
-    string msg = string("Couldn't read format template `") + fmtfile + '\'';
+    string msg = string("Couldn't read format template '") + fmtfile + '\'';
     if (!err.empty()) msg += " (" + err + ')';
     throw msg;
 }

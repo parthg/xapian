@@ -1,7 +1,7 @@
 /** @file leafpostlist.cc
  * @brief Abstract base class for leaf postlists.
  */
-/* Copyright (C) 2007,2009,2011 Olly Betts
+/* Copyright (C) 2007,2009,2011,2013 Olly Betts
  * Copyright (C) 2009 Lemur Consulting Ltd
  *
  * This program is free software; you can redistribute it and/or
@@ -90,7 +90,9 @@ LeafPostList::get_termfreq_est_using_stats(
 {
     LOGCALL(MATCH, TermFreqs, "LeafPostList::get_termfreq_est_using_stats", stats);
     if (term.empty()) {
-	RETURN(TermFreqs(stats.collection_size, stats.rset_size));
+	RETURN(TermFreqs(stats.collection_size,
+			 stats.rset_size,
+			 stats.total_term_count));
     }
     map<string, TermFreqs>::const_iterator i = stats.termfreqs.find(term);
     Assert(i != stats.termfreqs.end());
@@ -100,5 +102,11 @@ LeafPostList::get_termfreq_est_using_stats(
 Xapian::termcount
 LeafPostList::count_matching_subqs() const
 {
-    return 1;
+    return weight ? 1 : 0;
+}
+
+LeafPostList *
+LeafPostList::open_nearby_postlist(const std::string &) const
+{
+    return NULL;
 }

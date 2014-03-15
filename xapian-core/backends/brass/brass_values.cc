@@ -1,7 +1,7 @@
 /** @file brass_values.cc
  * @brief BrassValueManager class
  */
-/* Copyright (C) 2008,2009,2010,2011 Olly Betts
+/* Copyright (C) 2008,2009,2010,2011,2012 Olly Betts
  * Copyright (C) 2008,2009 Lemur Consulting Ltd
  *
  * This program is free software; you can redistribute it and/or modify
@@ -158,7 +158,8 @@ BrassValueManager::get_chunk_containing_did(Xapian::valueno slot,
 					    string &chunk) const
 {
     LOGCALL(DB, Xapian::docid, "BrassValueManager::get_chunk_containing_did", slot | did | chunk);
-    AutoPtr<BrassCursor> cursor(postlist_table->cursor_get());
+    if (!cursor.get())
+	cursor.reset(postlist_table->cursor_get());
     if (!cursor.get()) return 0;
 
     bool exact = cursor->find_entry(make_valuechunk_key(slot, did));
@@ -491,8 +492,13 @@ BrassValueManager::get_all_values(map<Xapian::valueno, string> & values,
 				  Xapian::docid did) const
 {
     Assert(values.empty());
-    if (!termlist_table->is_open())
+    if (!termlist_table->is_open()) {
+	// Either the database has been closed, or else there's no termlist table.
+	// Check if the postlist table is open to determine which is the case.
+	if (!postlist_table->is_open())
+	    BrassTable::throw_database_closed();
 	throw Xapian::FeatureUnavailableError("Database has no termlist");
+    }
     map<Xapian::docid, string>::const_iterator i = slots.find(did);
     string s;
     if (i != slots.end()) {

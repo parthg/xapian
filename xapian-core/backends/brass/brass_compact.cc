@@ -1,7 +1,7 @@
 /** @file brass_compact.cc
  * @brief Compact a brass database, or merge and compact several.
  */
-/* Copyright (C) 2004,2005,2006,2007,2008,2009,2010,2011,2012 Olly Betts
+/* Copyright (C) 2004,2005,2006,2007,2008,2009,2010,2011,2012,2013 Olly Betts
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -21,7 +21,10 @@
 
 #include <config.h>
 
-#include <xapian/compactor.h>
+#include "xapian/compactor.h"
+#include "xapian/constants.h"
+#include "xapian/error.h"
+#include "xapian/types.h"
 
 #include <algorithm>
 #include <queue>
@@ -40,7 +43,6 @@
 
 #include "../byte_length_strings.h"
 #include "../prefix_compressed_strings.h"
-#include <xapian.h>
 
 using namespace std;
 
@@ -206,7 +208,7 @@ merge_postlists(Xapian::Compactor & compactor,
     priority_queue<PostlistCursor *, vector<PostlistCursor *>, PostlistCursorGt> pq;
     for ( ; b != e; ++b, ++offset) {
 	BrassTable *in = new BrassTable("postlist", *b, true);
-	in->open();
+	in->open(0);
 	if (in->empty()) {
 	    // Skip empty tables.
 	    delete in;
@@ -255,11 +257,13 @@ merge_postlists(Xapian::Compactor & compactor,
 	    if (tot_totlen < totlen) {
 		throw "totlen wrapped!";
 	    }
-	}
-	if (cur->next()) {
-	    pq.push(cur);
+	    if (cur->next()) {
+		pq.push(cur);
+	    } else {
+		delete cur;
+	    }
 	} else {
-	    delete cur;
+	    pq.push(cur);
 	}
     }
 
@@ -325,7 +329,6 @@ merge_postlists(Xapian::Compactor & compactor,
 	Xapian::doccount freq = 0;
 	string lbound, ubound;
 
-	string last_tag;
 	while (!pq.empty()) {
 	    PostlistCursor * cur = pq.top();
 	    const string& key = cur->key;
@@ -480,7 +483,7 @@ merge_spellings(BrassTable * out,
     priority_queue<MergeCursor *, vector<MergeCursor *>, CursorGt> pq;
     for ( ; b != e; ++b) {
 	BrassTable *in = new BrassTable("spelling", *b, true, DONT_COMPRESS, true);
-	in->open();
+	in->open(0);
 	if (!in->empty()) {
 	    // The MergeCursor takes ownership of BrassTable in and is
 	    // responsible for deleting it.
@@ -535,13 +538,13 @@ merge_spellings(BrassTable * out,
 	    string lastword;
 	    while (!pqtag.empty()) {
 		PrefixCompressedStringItor * it = pqtag.top();
+		pqtag.pop();
 		string word = **it;
 		if (word != lastword) {
 		    lastword = word;
 		    wr.append(lastword);
 		}
 		++*it;
-		pqtag.pop();
 		if (!it->at_end()) {
 		    pqtag.push(it);
 		} else {
@@ -594,7 +597,7 @@ merge_synonyms(BrassTable * out,
     priority_queue<MergeCursor *, vector<MergeCursor *>, CursorGt> pq;
     for ( ; b != e; ++b) {
 	BrassTable *in = new BrassTable("synonym", *b, true, DONT_COMPRESS, true);
-	in->open();
+	in->open(0);
 	if (!in->empty()) {
 	    // The MergeCursor takes ownership of BrassTable in and is
 	    // responsible for deleting it.
@@ -644,13 +647,13 @@ merge_synonyms(BrassTable * out,
 	string lastword;
 	while (!pqtag.empty()) {
 	    ByteLengthPrefixedStringItor * it = pqtag.top();
+	    pqtag.pop();
 	    if (**it != lastword) {
 		lastword = **it;
 		tag += byte(lastword.size() ^ MAGIC_XOR_VALUE);
 		tag += lastword;
 	    }
 	    ++*it;
-	    pqtag.pop();
 	    if (!it->at_end()) {
 		pqtag.push(it);
 	    } else {
@@ -697,10 +700,11 @@ multimerge_postlists(Xapian::Compactor & compactor,
 	    // be.
 	    BrassTable tmptab("postlist", dest, false);
 	    // Use maximum blocksize for temporary tables.
-	    tmptab.create_and_open(65536);
+	    tmptab.create_and_open(Xapian::DB_DANGEROUS|Xapian::DB_NO_SYNC,
+				   65536);
 
 	    merge_postlists(compactor, &tmptab, off.begin() + i,
-			    tmp.begin() + i, tmp.begin() + j, 0);
+			    tmp.begin() + i, tmp.begin() + j, last_docid);
 	    if (c > 0) {
 		for (unsigned int k = i; k < j; ++k) {
 		    unlink((tmp[k] + "DB").c_str());
@@ -736,7 +740,7 @@ merge_docid_keyed(const char * tablename,
 	Xapian::docid off = offset[i];
 
 	BrassTable in(tablename, inputs[i], true, DONT_COMPRESS, lazy);
-	in.open();
+	in.open(0);
 	if (in.empty()) continue;
 
 	BrassCursor cur(&in);
@@ -870,10 +874,10 @@ compact_brass(Xapian::Compactor & compactor,
 
 	BrassTable out(t->name, dest, false, t->compress_strategy, t->lazy);
 	if (!t->lazy) {
-	    out.create_and_open(block_size);
+	    out.create_and_open(Xapian::DB_DANGEROUS, block_size);
 	} else {
 	    out.erase();
-	    out.set_block_size(block_size);
+	    out.set_block_size(Xapian::DB_DANGEROUS, block_size);
 	}
 
 	out.set_full_compaction(compaction != compactor.STANDARD);

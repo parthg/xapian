@@ -2,7 +2,7 @@
  * @brief Xapian::Weight::Internal class, holding database and term statistics.
  */
 /* Copyright (C) 2007 Lemur Consulting Ltd
- * Copyright (C) 2009,2010,2011,2012 Olly Betts
+ * Copyright (C) 2009,2010,2011,2012,2013 Olly Betts
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -37,10 +37,12 @@ using namespace std;
 
 string
 TermFreqs::get_description() const {
-    string desc("TermFreqs(");
+    string desc("TermFreqs(termfreq=");
     desc += str(termfreq);
-    desc += ", ";
+    desc += ", reltermfreq=";
     desc += str(reltermfreq);
+    desc += ", collfreq=";
+    desc += str(collfreq);
     desc += ")";
     return desc;
 }
@@ -53,6 +55,7 @@ Weight::Internal::operator +=(const Weight::Internal & inc)
     total_length += inc.total_length;
     collection_size += inc.collection_size;
     rset_size += inc.rset_size;
+    total_term_count += inc.total_term_count;
 
     // Add termfreqs and reltermfreqs
     map<string, TermFreqs>::const_iterator i;
@@ -73,6 +76,16 @@ Weight::Internal::get_termfreq(const string & term) const
     return tfreq->second.termfreq;
 }
 
+Xapian::termcount Weight::Internal::get_collection_freq(const string & term) const
+{
+    // We pass an empty std::string for term when calculating the extra weight.
+    if (term.empty()) return 0;
+
+    map<string, TermFreqs>::const_iterator cfreq = termfreqs.find(term);
+    Assert(cfreq != termfreqs.end());
+    return cfreq->second.collfreq;
+}
+
 void
 Weight::Internal::accumulate_stats(const Xapian::Database::Internal &subdb,
 				   const Xapian::RSet &rset)
@@ -81,10 +94,12 @@ Weight::Internal::accumulate_stats(const Xapian::Database::Internal &subdb,
     collection_size += subdb.get_doccount();
     rset_size += rset.size();
 
+    total_term_count += subdb.get_doccount() * subdb.get_total_length();
     map<string, TermFreqs>::iterator t;
     for (t = termfreqs.begin(); t != termfreqs.end(); ++t) {
 	const string & term = t->first;
 	t->second.termfreq += subdb.get_termfreq(term);
+	t->second.collfreq += subdb.get_collection_freq(term);
     }
 
     const set<Xapian::docid> & items(rset.internal->get_items());
@@ -129,6 +144,8 @@ Weight::Internal::get_description() const
     desc += str(collection_size);
     desc += ", rset_size=";
     desc += str(rset_size);
+    desc += ", total_term_count=";
+    desc += str(total_term_count);
     desc += ')';
     return desc;
 }

@@ -1,7 +1,7 @@
 /** @file brass_version.h
  * @brief BrassVersion class
  */
-/* Copyright (C) 2006,2007,2008,2009 Olly Betts
+/* Copyright (C) 2006,2007,2008,2009,2013 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -47,7 +47,7 @@ class BrassVersion {
     }
 
     /** Create the version file. */
-    void create();
+    void create(int flags);
 
     /** Read the version file and check it's a version we understand.
      *
@@ -68,8 +68,9 @@ class BrassVersion {
 	return std::string(buf, 36);
     }
 
+#if 0 // Unused currently.
     /// Set the UUID from 16 byte binary value @a data.
-    void set_uuid(void * data) {
+    void set_uuid(const void * data) {
 	std::memcpy(uuid, data, 16);
     }
 
@@ -80,6 +81,7 @@ class BrassVersion {
     bool set_uuid_string(const std::string & s) {
 	return uuid_parse(s.c_str(), uuid);
     }
+#endif
 };
 
 #endif

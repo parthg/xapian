@@ -1,6 +1,5 @@
-# Before `make install' is performed this script should be runnable with
-# 	- Wrap new Query op OP_VALUE_RANGE and associated constructor.
-# `make test'. After `make install' it should work as `perl test.pl'
+# Before 'make install' is performed this script should be runnable with
+# 'make test'. After 'make install' it should work as 'perl test.pl'
 
 # FIXME: these tests pass in the XS version.
 my $disable_fixme = 1;
@@ -13,7 +12,7 @@ BEGIN {$SIG{__WARN__} = sub { die "Terminating test due to warning: $_[0]" } };
 
 use Test;
 use Devel::Peek;
-BEGIN { plan tests => 59 };
+BEGIN { plan tests => 61 };
 use Search::Xapian qw(:standard);
 ok(1); # If we made it this far, we're ok.
 
@@ -93,21 +92,25 @@ my $vrp2 = new Search::Xapian::NumberValueRangeProcessor(2);
 my $vrp3 = new Search::Xapian::StringValueRangeProcessor(3);
 my $vrp4 = new Search::Xapian::NumberValueRangeProcessor(4, '$');
 my $vrp5 = new Search::Xapian::NumberValueRangeProcessor(5, 'kg', 0);
+my $vrp6 = new Search::Xapian::StringValueRangeProcessor(6, 'country:');
+my $vrp7 = new Search::Xapian::StringValueRangeProcessor(7, ':name', 0);
 $qp->add_valuerangeprocessor( $vrp1 );
 $qp->add_valuerangeprocessor( $vrp2 );
 $qp->add_valuerangeprocessor( $vrp4 );
 $qp->add_valuerangeprocessor( $vrp5 );
+$qp->add_valuerangeprocessor( $vrp6 );
+$qp->add_valuerangeprocessor( $vrp7 );
 $qp->add_valuerangeprocessor( $vrp3 );
 
 $qp->add_boolean_prefix("test", "XTEST");
 foreach $pair (
     [ 'a..b', '0 * VALUE_RANGE 3 a b' ],
-    [ '1..12', "0 * VALUE_RANGE 2 \xa0 \xae" ],
+    [ '1..12', "0 * VALUE_RANGE 2 \\xa0 \\xae" ],
     [ '20070201..20070228', '0 * VALUE_RANGE 1 20070201 20070228' ],
-    [ '$10..20', "0 * VALUE_RANGE 4 \xad \xb1" ],
-    [ '$10..$20', "0 * VALUE_RANGE 4 \xad \xb1" ],
-    [ '12..42kg', "0 * VALUE_RANGE 5 \xae \xb5\@" ],
-    [ '12kg..42kg', "0 * VALUE_RANGE 5 \xae \xb5\@" ],
+    [ '$10..20', "0 * VALUE_RANGE 4 \\xad \\xb1" ],
+    [ '$10..$20', "0 * VALUE_RANGE 4 \\xad \\xb1" ],
+    [ '12..42kg', "0 * VALUE_RANGE 5 \\xae \\xb5\@" ],
+    [ '12kg..42kg', "0 * VALUE_RANGE 5 \\xae \\xb5\@" ],
     [ '12kg..42', '0 * VALUE_RANGE 3 12kg 42' ],
     [ '10..$20', '' ],
     [ '1999-03-12..2020-12-30', '0 * VALUE_RANGE 1 19990312 20201230' ],
@@ -116,6 +119,8 @@ foreach $pair (
     [ '12/03/99..12/04/01', '0 * VALUE_RANGE 1 19990312 20010412' ],
     [ '03-12-99..04-14-01', '0 * VALUE_RANGE 1 19990312 20010414' ],
     [ '(test:a..test:b hello)', '(hello@1 FILTER VALUE_RANGE 3 test:a test:b)' ],
+    [ 'country:chile..denmark', '0 * VALUE_RANGE 6 chile denmark' ],
+    [ 'albert..xeni:name', '0 * VALUE_RANGE 7 albert xeni' ],
     ) {
     my ($str, $res) = @{$pair};
     my $query = $qp->parse_query($str);
@@ -148,7 +153,7 @@ eval {
 };
 ok($@);
 ok(ref($@), "Search::Xapian::QueryParserError", "correct class for exception");
-ok(UNIVERSAL::isa($@, 'Search::Xapian::Error'));
+ok($@->isa('Search::Xapian::Error'));
 ok($@->get_msg, "Syntax: <expression> AND <expression>", "get_msg works");
 ok( $disable_fixme || $@ =~ /^Exception: Syntax: <expression> AND <expression>(?: at \S+ line \d+\.)?$/ );
 

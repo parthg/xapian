@@ -1,7 +1,7 @@
 /** @file queryinternal.cc
  * @brief Xapian::Query internals
  */
-/* Copyright (C) 2007,2008,2009,2010,2011,2012 Olly Betts
+/* Copyright (C) 2007,2008,2009,2010,2011,2012,2013,2014 Olly Betts
  * Copyright (C) 2008,2009 Lemur Consulting Ltd
  *
  * This program is free software; you can redistribute it and/or
@@ -33,6 +33,7 @@
 #include "emptypostlist.h"
 #include "matcher/exactphrasepostlist.h"
 #include "matcher/externalpostlist.h"
+#include "matcher/maxpostlist.h"
 #include "matcher/multiandpostlist.h"
 #include "matcher/multixorpostlist.h"
 #include "matcher/orpostlist.h"
@@ -47,8 +48,10 @@
 #include "debuglog.h"
 #include "omassert.h"
 #include "str.h"
+#include "unicode/description_append.h"
 
 #include <algorithm>
+#include <functional>
 #include <list>
 #include <string>
 #include <vector>
@@ -154,6 +157,7 @@ class OrContext : public Context {
     void select_elite_set(size_t set_size, size_t out_of);
 
     PostList * postlist(QueryOptimiser* qopt);
+    PostList * postlist_max(QueryOptimiser* qopt);
 };
 
 void
@@ -213,6 +217,28 @@ OrContext::postlist(QueryOptimiser* qopt)
 	pls.back() = pl;
 	push_heap(pls.begin(), pls.end(), ComparePostListTermFreqAscending());
     }
+}
+
+PostList *
+OrContext::postlist_max(QueryOptimiser* qopt)
+{
+    Assert(!pls.empty());
+
+    if (pls.size() == 1) {
+	PostList * pl = pls[0];
+	pls.clear();
+	return pl;
+    }
+
+    // Sort the postlists so that the postlist with the greatest term frequency
+    // is first.
+    sort(pls.begin(), pls.end(), ComparePostListTermFreqAscending());
+
+    PostList * pl;
+    pl = new MaxPostList(pls.begin(), pls.end(), qopt->matcher, qopt->db_size);
+
+    pls.clear();
+    return pl;
 }
 
 class XorContext : public Context {
@@ -320,8 +346,20 @@ AndContext::postlist(QueryOptimiser* qopt)
 
 Query::Internal::~Internal() { }
 
+size_t
+Query::Internal::get_num_subqueries() const
+{
+    return 0;
+}
+
+const Query
+Query::Internal::get_subquery(size_t) const
+{
+    throw Xapian::InvalidArgumentError("get_subquery() not meaningful for this Query object");
+}
+
 void
-Query::Internal::gather_terms(vector<pair<Xapian::termpos, string> > &) const
+Query::Internal::gather_terms(void *) const
 {
 }
 
@@ -373,6 +411,9 @@ Query::Internal::unserialise(const char ** p, const char * end,
 		case 6: // OP_SYNONYM
 		    result = new Xapian::Internal::QuerySynonym(n_subqs);
 		    break;
+		case 7: // OP_MAX
+		    result = new Xapian::Internal::QueryMax(n_subqs);
+		    break;
 		case 13: // OP_ELITE_SET
 		    result = new Xapian::Internal::QueryEliteSet(n_subqs,
 								 parameter);
@@ -386,7 +427,7 @@ Query::Internal::unserialise(const char ** p, const char * end,
 							       parameter);
 		    break;
 		default:
-		    // 7 to 12 are currently unused.
+		    // 8 to 12 are currently unused.
 		    throw SerialisationError("Unknown multi-way branch Query operator");
 	    }
 	    do {
@@ -504,12 +545,21 @@ Query::Internal::postlist_sub_xor(XorContext& ctx,
 
 namespace Internal {
 
+Query::op
+QueryTerm::get_type() const
+{
+    return term.empty() ? Query::LEAF_MATCH_ALL : Query::LEAF_TERM;
+}
+
 string
 QueryTerm::get_description() const
 {
-    string desc = term;
-    if (term.empty())
+    string desc;
+    if (term.empty()) {
 	desc = "<alldocuments>";
+    } else {
+	description_append(desc, term);
+    }
     if (wqf != 1) {
 	desc += '#';
 	desc += str(wqf);
@@ -541,6 +591,12 @@ QueryPostingSource::~QueryPostingSource()
 	delete source;
 }
 
+Query::op
+QueryPostingSource::get_type() const
+{
+    return Query::LEAF_POSTING_SOURCE;
+}
+
 string
 QueryPostingSource::get_description() const
 {
@@ -555,6 +611,24 @@ QueryScaleWeight::QueryScaleWeight(double factor, const Query & subquery_)
 {
     if (rare(scale_factor < 0.0))
 	throw Xapian::InvalidArgumentError("OP_SCALE_WEIGHT requires factor >= 0");
+}
+
+Query::op
+QueryScaleWeight::get_type() const
+{
+    return Query::OP_SCALE_WEIGHT;
+}
+
+size_t
+QueryScaleWeight::get_num_subqueries() const
+{
+    return 1;
+}
+
+const Query
+QueryScaleWeight::get_subquery(size_t) const
+{
+    return subquery;
 }
 
 string
@@ -607,11 +681,14 @@ QueryScaleWeight::postlist(QueryOptimiser * qopt, double factor) const
 }
 
 void
-QueryTerm::gather_terms(vector<pair<Xapian::termpos, string> > &terms) const
+QueryTerm::gather_terms(void * void_terms) const
 {
     // Skip Xapian::Query::MatchAll (aka Xapian::Query("")).
-    if (!term.empty())
+    if (!term.empty()) {
+	vector<pair<Xapian::termpos, string> > &terms =
+	    *static_cast<vector<pair<Xapian::termpos, string> >*>(void_terms);
 	terms.push_back(make_pair(pos, term));
+    }
 }
 
 PostingIterator::Internal *
@@ -644,15 +721,21 @@ QueryValueRange::serialise(string & result) const
     result += end;
 }
 
+Query::op
+QueryValueRange::get_type() const
+{
+    return Query::OP_VALUE_RANGE;
+}
+
 string
 QueryValueRange::get_description() const
 {
     string desc = "VALUE_RANGE ";
     desc += str(slot);
     desc += ' ';
-    desc += begin;
+    description_append(desc, begin);
     desc += ' ';
-    desc += end;
+    description_append(desc, end);
     return desc;
 }
 
@@ -685,13 +768,19 @@ QueryValueLE::serialise(string & result) const
     result += limit;
 }
 
+Query::op
+QueryValueLE::get_type() const
+{
+    return Query::OP_VALUE_LE;
+}
+
 string
 QueryValueLE::get_description() const
 {
     string desc = "VALUE_LE ";
     desc += str(slot);
     desc += ' ';
-    desc += limit;
+    description_append(desc, limit);
     return desc;
 }
 
@@ -722,13 +811,19 @@ QueryValueGE::serialise(string & result) const
     result += limit;
 }
 
+Query::op
+QueryValueGE::get_type() const
+{
+    return Query::OP_VALUE_GE;
+}
+
 string
 QueryValueGE::get_description() const
 {
     string desc = "VALUE_GE ";
     desc += str(slot);
     desc += ' ';
-    desc += limit;
+    description_append(desc, limit);
     return desc;
 }
 
@@ -737,11 +832,11 @@ QueryBranch::get_length() const
 {
     // Sum results from all subqueries.
     Xapian::termcount result = 0;
-    vector<Query>::const_iterator i;
+    QueryVector::const_iterator i;
     for (i = subqueries.begin(); i != subqueries.end(); ++i) {
 	// MatchNothing subqueries should have been removed by done().
-	Assert(i->internal.get());
-	result += i->internal->get_length();
+	Assert((*i).internal.get());
+	result += (*i).internal->get_length();
     }
     return result;
 }
@@ -765,7 +860,8 @@ QueryBranch::serialise_(string & result, Xapian::termcount parameter) const
 	MULTIWAY(13),	// OP_ELITE_SET
 	0,		// OP_VALUE_GE
 	0,		// OP_VALUE_LE
-	MULTIWAY(6)	// OP_SYNONYM
+	MULTIWAY(6),	// OP_SYNONYM
+	MULTIWAY(7)	// OP_MAX
     };
     Xapian::Query::op op_ = get_op();
     AssertRel(size_t(op_),<,sizeof(first_byte));
@@ -783,11 +879,11 @@ QueryBranch::serialise_(string & result, Xapian::termcount parameter) const
 	result += ch;
     }
 
-    vector<Query>::const_iterator i;
+    QueryVector::const_iterator i;
     for (i = subqueries.begin(); i != subqueries.end(); ++i) {
 	// MatchNothing subqueries should have been removed by done().
-	Assert(i->internal.get());
-	i->internal->serialise(result);
+	Assert((*i).internal.get());
+	(*i).internal->serialise(result);
     }
 
     // For OP_NEAR, OP_PHRASE, and OP_ELITE_SET, the window/set size gets
@@ -822,14 +918,14 @@ QueryEliteSet::serialise(string & result) const
 }
 
 void
-QueryBranch::gather_terms(vector<pair<Xapian::termpos, string> > &terms) const
+QueryBranch::gather_terms(void * void_terms) const
 {
     // Gather results from all subqueries.
-    vector<Query>::const_iterator i;
+    QueryVector::const_iterator i;
     for (i = subqueries.begin(); i != subqueries.end(); ++i) {
 	// MatchNothing subqueries should have been removed by done().
-	Assert(i->internal.get());
-	i->internal->gather_terms(terms);
+	Assert((*i).internal.get());
+	(*i).internal->gather_terms(void_terms);
     }
 }
 
@@ -847,11 +943,11 @@ QueryBranch::do_or_like(OrContext& ctx, QueryOptimiser * qopt, double factor,
     vector<PostList *> postlists;
     postlists.reserve(subqueries.size() - first);
 
-    vector<Query>::const_iterator q;
+    QueryVector::const_iterator q;
     for (q = subqueries.begin() + first; q != subqueries.end(); ++q) {
 	// MatchNothing subqueries should have been removed by done().
-	Assert(q->internal.get());
-	q->internal->postlist_sub_or_like(ctx, qopt, factor);
+	Assert((*q).internal.get());
+	(*q).internal->postlist_sub_or_like(ctx, qopt, factor);
     }
 
     if (elite_set_size && elite_set_size < subqueries.size()) {
@@ -883,12 +979,49 @@ QueryBranch::do_synonym(QueryOptimiser * qopt, double factor) const
     RETURN(qopt->make_synonym_postlist(pl, factor));
 }
 
+PostList *
+QueryBranch::do_max(QueryOptimiser * qopt, double factor) const
+{
+    LOGCALL(MATCH, PostList *, "QueryBranch::do_max", qopt | factor);
+    OrContext ctx(subqueries.size());
+    do_or_like(ctx, qopt, factor);
+    if (factor == 0.0) {
+	// If we have a factor of 0, we don't care about the weights, so
+	// we're just like a normal OR query.
+	return ctx.postlist(qopt);
+    }
+
+    // We currently assume wqf is 1 for calculating the OP_MAX's weight
+    // since conceptually the OP_MAX is one "virtual" term.  If we were
+    // to combine multiple occurrences of the same OP_MAX expansion into
+    // a single instance with wqf set, we would want to track the wqf.
+    return ctx.postlist_max(qopt);
+}
+
+Xapian::Query::op
+QueryBranch::get_type() const
+{
+    return get_op();
+}
+
+size_t
+QueryBranch::get_num_subqueries() const
+{
+    return subqueries.size();
+}
+
+const Query
+QueryBranch::get_subquery(size_t n) const
+{
+    return subqueries[n];
+}
+
 const string
 QueryBranch::get_description_helper(const char * op,
 				    Xapian::termcount parameter) const
 {
     string desc = "(";
-    vector<Query>::const_iterator i;
+    QueryVector::const_iterator i;
     for (i = subqueries.begin(); i != subqueries.end(); ++i) {
 	if (desc.size() > 1) {
 	    desc += op;
@@ -897,11 +1030,11 @@ QueryBranch::get_description_helper(const char * op,
 		desc += ' ';
 	    }
 	}
-	Assert(i->internal.get());
+	Assert((*i).internal.get());
 	// MatchNothing subqueries should have been removed by done(), and we
 	// shouldn't get called before done() is, since that happens at the
 	// end of the Xapian::Query constructor.
-	desc += i->internal->get_description();
+	desc += (*i).internal->get_description();
     }
     desc += ')';
     return desc;
@@ -917,9 +1050,9 @@ QueryWindowed::done()
 }
 
 void
-QueryScaleWeight::gather_terms(vector<pair<Xapian::termpos, string> > &terms) const
+QueryScaleWeight::gather_terms(void * void_terms) const
 {
-    subquery.internal->gather_terms(terms);
+    subquery.internal->gather_terms(void_terms);
 }
 
 void QueryTerm::serialise(string & result) const
@@ -1009,16 +1142,27 @@ struct is_matchnothing {
     }
 };
 
+void
+QueryAndLike::add_subquery(const Xapian::Query & subquery)
+{
+    // If the AndLike is already MatchNothing, do nothing.
+    if (subqueries.size() == 1 && subqueries[0].internal.get() == NULL)
+	return;
+    // If we're adding MatchNothing, discard any previous subqueries.
+    if (subquery.internal.get() == NULL)
+	subqueries.clear();
+    subqueries.push_back(subquery);
+}
+
 Query::Internal *
 QueryAndLike::done()
 {
     // Empty AndLike gives MatchNothing.
     if (subqueries.empty())
 	return NULL;
-    // If any subquery is MatchNothing, then AndLike gives MatchNothing.
-    vector<Query> & v = subqueries;
-    if (find_if(v.begin(), v.end(), is_matchnothing()) != v.end())
-	return NULL;
+    // We handle any subquery being MatchNothing in add_subquery() by leaving
+    // a single MatchNothing subquery, and so this check results in AndLike
+    // giving MatchNothing.
     if (subqueries.size() == 1)
 	return subqueries[0].internal.get();
     return this;
@@ -1036,21 +1180,27 @@ QueryAndLike::postlist(QueryOptimiser * qopt, double factor) const
 void
 QueryAndLike::postlist_sub_and_like(AndContext& ctx, QueryOptimiser * qopt, double factor) const
 {
-    vector<Query>::const_iterator i;
+    QueryVector::const_iterator i;
     for (i = subqueries.begin(); i != subqueries.end(); ++i) {
 	// MatchNothing subqueries should have been removed by done().
-	Assert(i->internal.get());
-	i->internal->postlist_sub_and_like(ctx, qopt, factor);
+	Assert((*i).internal.get());
+	(*i).internal->postlist_sub_and_like(ctx, qopt, factor);
     }
+}
+
+void
+QueryOrLike::add_subquery(const Xapian::Query & subquery)
+{
+    // Drop any subqueries which are MatchNothing.
+    if (subquery.internal.get() != NULL)
+	subqueries.push_back(subquery);
 }
 
 Query::Internal *
 QueryOrLike::done()
 {
-    // Remove any subqueries which are MatchNothing.
-    vector<Query> & v = subqueries;
-    v.erase(remove_if(v.begin(), v.end(), is_matchnothing()), v.end());
-    // If no subqueries are left, then OrLike gives MatchNothing.
+    // An empty OrLike gives MatchNothing.  Note that add_subquery() drops any
+    // subqueries which are MatchNothing.
     if (subqueries.empty())
 	return NULL;
     if (subqueries.size() == 1)
@@ -1058,36 +1208,52 @@ QueryOrLike::done()
     return this;
 }
 
+void
+QueryAndNot::add_subquery(const Xapian::Query & subquery)
+{
+    // If the left side of AndNot is already MatchNothing, do nothing.
+    if (subqueries.size() == 1 && subqueries[0].internal.get() == NULL)
+	return;
+    // Drop any 2nd or subsequent subqueries which are MatchNothing.
+    if (subquery.internal.get() != NULL || subqueries.empty())
+	subqueries.push_back(subquery);
+}
+
 Query::Internal *
 QueryAndNot::done()
 {
-    // If left subquery is MatchNothing, then AND_NOT gives MatchNothing.
-    if (subqueries[0].internal.get() == NULL) {
-	return NULL;
-    }
-    // If all right subqueries are MatchNothing, then AND_NOT gives the left
-    // subquery.
-    for (size_t i = 1; i != subqueries.size(); ++i) {
-	if (subqueries[i].internal.get())
-	    return this;
-    }
-    return subqueries[0].internal.get();
+    // Any MatchNothing right subqueries get discarded by add_subquery() - if
+    // that leaves just the left subquery, return that.
+    //
+    // If left subquery is MatchNothing, then add_subquery() discards all right
+    // subqueries, so this check also gives MatchNothing for this case.
+    if (subqueries.size() == 1)
+	return subqueries[0].internal.get();
+    return this;
+}
+
+void
+QueryAndMaybe::add_subquery(const Xapian::Query & subquery)
+{
+    // If the left side of AndMaybe is already MatchNothing, do nothing.
+    if (subqueries.size() == 1 && subqueries[0].internal.get() == NULL)
+	return;
+    // Drop any 2nd or subsequent subqueries which are MatchNothing.
+    if (subquery.internal.get() != NULL || subqueries.empty())
+	subqueries.push_back(subquery);
 }
 
 Query::Internal *
 QueryAndMaybe::done()
 {
-    // If left subquery is MatchNothing, then AND_MAYBE gives MatchNothing.
-    if (subqueries[0].internal.get() == NULL) {
-	return NULL;
-    }
-    // If all right subqueries are MatchNothing, then AND_MAYBE gives the left
-    // subquery.
-    for (size_t i = 1; i != subqueries.size(); ++i) {
-	if (subqueries[i].internal.get())
-	    return this;
-    }
-    return subqueries[0].internal.get();
+    // Any MatchNothing right subqueries get discarded by add_subquery() - if
+    // that leaves just the left subquery, return that.
+    //
+    // If left subquery is MatchNothing, then add_subquery() discards all right
+    // subqueries, so this check also gives MatchNothing for this case.
+    if (subqueries.size() == 1)
+	return subqueries[0].internal.get();
+    return this;
 }
 
 PostingIterator::Internal *
@@ -1130,11 +1296,11 @@ QueryXor::postlist(QueryOptimiser * qopt, double factor) const
 void
 QueryXor::postlist_sub_xor(XorContext& ctx, QueryOptimiser * qopt, double factor) const
 {
-    vector<Query>::const_iterator i;
+    QueryVector::const_iterator i;
     for (i = subqueries.begin(); i != subqueries.end(); ++i) {
 	// MatchNothing subqueries should have been removed by done().
-	Assert(i->internal.get());
-	i->internal->postlist_sub_xor(ctx, qopt, factor);
+	Assert((*i).internal.get());
+	(*i).internal->postlist_sub_xor(ctx, qopt, factor);
     }
 }
 
@@ -1167,11 +1333,11 @@ QueryFilter::postlist(QueryOptimiser * qopt, double factor) const
 void
 QueryFilter::postlist_sub_and_like(AndContext& ctx, QueryOptimiser * qopt, double factor) const
 {
-    vector<Query>::const_iterator i;
+    QueryVector::const_iterator i;
     for (i = subqueries.begin(); i != subqueries.end(); ++i) {
 	// MatchNothing subqueries should have been removed by done().
-	Assert(i->internal.get());
-	i->internal->postlist_sub_and_like(ctx, qopt, factor);
+	Assert((*i).internal.get());
+	(*i).internal->postlist_sub_and_like(ctx, qopt, factor);
 	// Second and subsequent subqueries are unweighted.
 	factor = 0.0;
     }
@@ -1182,12 +1348,12 @@ QueryWindowed::postlist_windowed(Query::op op, AndContext& ctx, QueryOptimiser *
 {
     // FIXME: should has_positions() be on the combined DB (not this sub)?
     if (qopt->db.has_positions()) {
-	vector<Query>::const_iterator i;
+	QueryVector::const_iterator i;
 	for (i = subqueries.begin(); i != subqueries.end(); ++i) {
 	    // MatchNothing subqueries should have been removed by done().
-	    Assert(i->internal.get());
+	    Assert((*i).internal.get());
 	    // FIXME: postlist_sub_positional?
-	    ctx.add_postlist(i->internal->postlist(qopt, factor));
+	    ctx.add_postlist((*i).internal->postlist(qopt, factor));
 	}
 	// Record the positional filter to apply higher up the tree.
 	ctx.add_pos_filter(op, subqueries.size(), window);
@@ -1233,6 +1399,38 @@ QuerySynonym::postlist(QueryOptimiser * qopt, double factor) const
     if (factor != 0.0)
 	++save_total_subqs;
     PostList * pl = do_synonym(qopt, factor);
+    qopt->set_total_subqs(save_total_subqs);
+    RETURN(pl);
+}
+
+Query::Internal *
+QuerySynonym::done()
+{
+    // An empty Synonym gives MatchNothing.  Note that add_subquery() drops any
+    // subqueries which are MatchNothing.
+    if (subqueries.empty())
+	return NULL;
+    // Synonym of a single subquery should only be simplified if that subquery
+    // is a term (or MatchAll).  Note that MatchNothing subqueries are dropped,
+    // so we'd never get here with a single MatchNothing subquery.
+    if (subqueries.size() == 1) {
+	Query::op sub_type = subqueries[0].get_type();
+	if (sub_type == Query::LEAF_TERM || sub_type == Query::LEAF_MATCH_ALL)
+	    return subqueries[0].internal.get();
+    }
+    return this;
+}
+
+PostingIterator::Internal *
+QueryMax::postlist(QueryOptimiser * qopt, double factor) const
+{
+    LOGCALL(QUERY, PostingIterator::Internal *, "QueryMax::postlist", qopt | factor);
+    // Save and restore total_subqs so we only add one for the whole
+    // OP_MAX subquery (or none if we're not weighted).
+    Xapian::termcount save_total_subqs = qopt->get_total_subqs();
+    if (factor != 0.0)
+	++save_total_subqs;
+    PostList * pl = do_max(qopt, factor);
     qopt->set_total_subqs(save_total_subqs);
     RETURN(pl);
 }
@@ -1295,6 +1493,12 @@ string
 QuerySynonym::get_description() const
 {
     return get_description_helper(" SYNONYM ");
+}
+
+string
+QueryMax::get_description() const
+{
+    return get_description_helper(" MAX ");
 }
 
 }

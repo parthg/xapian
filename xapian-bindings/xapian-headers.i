@@ -1,7 +1,7 @@
 %{
 /* xapian-headers.i: Getting SWIG to parse Xapian's C++ headers.
  *
- * Copyright 2006,2011,2012 Olly Betts
+ * Copyright 2004,2006,2011,2012,2013,2014 Olly Betts
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -31,7 +31,7 @@
 %enddef
 
 /* A class which is only useful to wrap if the target language allows
- * subclassing of wrapped classes (what SWIG calls "director support".
+ * subclassing of wrapped classes (what SWIG calls "director support").
  */
 #ifdef XAPIAN_SWIG_DIRECTORS
 #define SUBCLASSABLE_ONLY(NS, CLASS) SUBCLASSABLE(NS, CLASS)
@@ -44,12 +44,14 @@
 %define STANDARD_IGNORES(NS, CLASS)
     %ignore NS::CLASS::internal;
     %ignore NS::CLASS::CLASS(Internal*);
+    %ignore NS::CLASS::CLASS(Internal&);
     %ignore NS::CLASS::operator=;
 %enddef
 #else
 %define STANDARD_IGNORES(NS, CLASS)
     %ignore NS::CLASS::internal;
     %ignore NS::CLASS::CLASS(Internal*);
+    %ignore NS::CLASS::CLASS(Internal&);
     %ignore NS::CLASS::operator=;
     %ignore NS::CLASS::CLASS(const CLASS &);
 %enddef
@@ -64,6 +66,13 @@
 #else
 /* Otherwise, next and prev return void. */
 #define INC_OR_DEC(METHOD, OP, NS, CLASS, RET_TYPE) void METHOD() { OP(*self); }
+#endif
+
+/* For other languages, SWIG already renames operator() suitably. */
+#if defined SWIGJAVA || defined SWIGPHP || defined SWIGTCL
+%rename(apply) *::operator();
+#elif defined SWIGCSHARP
+%rename(Apply) *::operator();
 #endif
 
 /* We use %ignore and %extend rather than %rename on operator* so that any
@@ -124,15 +133,32 @@
 /* Types are needed by most of the other headers. */
 %include <xapian/types.h>
 
+CONSTANT(int, Xapian, DB_CREATE);
+CONSTANT(int, Xapian, DB_CREATE_OR_OPEN);
+CONSTANT(int, Xapian, DB_CREATE_OR_OVERWRITE);
+CONSTANT(int, Xapian, DB_OPEN);
+%ignore Xapian::DB_ACTION_MASK_;
+%ignore Xapian::DB_BACKEND_MASK_;
+%ignore Xapian::DB_READONLY_;
+CONSTANT(int, Xapian, DB_NO_SYNC);
+CONSTANT(int, Xapian, DB_DANGEROUS);
+CONSTANT(int, Xapian, DB_NO_TERMLIST);
+CONSTANT(int, Xapian, DB_BACKEND_BRASS);
+CONSTANT(int, Xapian, DB_BACKEND_CHERT);
+CONSTANT(int, Xapian, DB_BACKEND_STUB);
+CONSTANT(int, Xapian, DBCHECK_SHORT_TREE);
+CONSTANT(int, Xapian, DBCHECK_FULL_TREE);
+CONSTANT(int, Xapian, DBCHECK_SHOW_BITMAP);
+CONSTANT(int, Xapian, DBCHECK_SHOW_STATS);
+CONSTANT(int, Xapian, DBCHECK_FIX);
+%include <xapian/constants.h>
+
 /* The Error subclasses are handled separately for languages where we wrap
  * them. */
 /* %include <xapian/error.h> */
 
 /* ErrorHandler isn't currently wrapped. */
 /* %include <xapian/errorhandler.h> */
-
-/* Currently wrapped via declarations in xapian.i: */
-/* %include <xapian/dbfactory.h> */
 
 INPUT_ITERATOR_METHODS(Xapian, PositionIterator, Xapian::termpos, get_termpos)
 %include <xapian/positioniterator.h>
@@ -278,6 +304,7 @@ SUBCLASSABLE(Xapian, ExpandDecider)
 SUBCLASSABLE(Xapian, KeyMaker)
 %include <xapian/keymaker.h>
 
+SUBCLASSABLE(Xapian, FieldProcessor)
 SUBCLASSABLE(Xapian, Stopper)
 SUBCLASSABLE(Xapian, ValueRangeProcessor)
 STANDARD_IGNORES(Xapian, QueryParser)
@@ -328,14 +355,55 @@ STANDARD_IGNORES(Xapian, Database)
 STANDARD_IGNORES(Xapian, WritableDatabase)
 %ignore Xapian::WritableDatabase::WritableDatabase(Database::Internal *);
 %ignore Xapian::Database::get_document_lazily_;
-%ignore Xapian::Database::check(const std::string &, int, std::ostream &);
-CONSTANT(int, Xapian, DB_CREATE);
-CONSTANT(int, Xapian, DB_CREATE_OR_OPEN);
-CONSTANT(int, Xapian, DB_CREATE_OR_OVERWRITE);
-CONSTANT(int, Xapian, DB_OPEN);
-CONSTANT(int, Xapian, DBCHECK_SHORT_TREE);
-CONSTANT(int, Xapian, DBCHECK_FULL_TREE);
-CONSTANT(int, Xapian, DBCHECK_SHOW_BITMAP);
-CONSTANT(int, Xapian, DBCHECK_SHOW_STATS);
-CONSTANT(int, Xapian, DBCHECK_FIX);
+%ignore Xapian::Database::check(const std::string &, int, std::ostream *);
 %include <xapian/database.h>
+%extend Xapian::Database {
+    static size_t check(const std::string &path, int opts = 0) {
+	return Xapian::Database::check(path, opts, opts ? &std::cout : NULL);
+    }
+}
+
+#if defined SWIGCSHARP || defined SWIGJAVA
+
+/* xapian/dbfactory.h is currently wrapped via fake class declarations in
+ * fake_dbfactory.i for C# and Java. */
+
+#else
+
+#define XAPIAN_HAS_INMEMORY_BACKEND
+%rename("inmemory_open") Xapian::InMemory::open;
+
+#ifdef XAPIAN_BINDINGS_SKIP_DEPRECATED_DB_FACTORIES
+%ignore Xapian::Brass::open;
+%ignore Xapian::Chert::open;
+%ignore Xapian::Auto::open_stub;
+#else
+
+/* SWIG Tcl wrappers don't call destructors for classes returned by factory
+ * functions, so we don't wrap them so users are forced to use the
+ * WritableDatabase ctor instead. */
+#ifdef SWIGTCL
+%ignore Xapian::Brass::open(const std::string &dir, int action, int block_size = 8192);
+%ignore Xapian::Chert::open(const std::string &dir, int action, int block_size = 8192);
+#endif
+
+#define XAPIAN_HAS_BRASS_BACKEND
+%rename("brass_open") Xapian::Brass::open;
+
+#define XAPIAN_HAS_CHERT_BACKEND
+%rename("chert_open") Xapian::Chert::open;
+
+#ifndef SWIGPHP
+/* PHP renames this to auto_open_stub() in php/php.i. */
+%rename("open_stub") Xapian::Auto::open_stub;
+#endif
+
+#endif
+
+#define XAPIAN_HAS_REMOTE_BACKEND
+%rename("remote_open") Xapian::Remote::open;
+%rename("remote_open_writable") Xapian::Remote::open_writable;
+
+%include <xapian/dbfactory.h>
+
+#endif

@@ -1,5 +1,5 @@
-# Before `make install' is performed this script should be runnable with
-# `make test'. After `make install' it should work as `perl test.pl'
+# Before 'make install' is performed this script should be runnable with
+# 'make test'. After 'make install' it should work as 'perl test.pl'
 
 #########################
 
@@ -11,7 +11,7 @@ BEGIN {$SIG{__WARN__} = sub { die "Terminating test due to warning: $_[0]" } };
 
 use Test;
 use Devel::Peek;
-BEGIN { plan tests => 5 };
+BEGIN { plan tests => 6 };
 use Search::Xapian qw(:standard);
 ok(1); # If we made it this far, we're ok.
 
@@ -80,8 +80,12 @@ eval {
 };
 ok($@);
 ok(ref($@), "Search::Xapian::DatabaseModifiedError", "correct class for exception");
-ok(UNIVERSAL::isa($@, 'Search::Xapian::Error'));
+ok($@->isa('Search::Xapian::Error'));
 
 ok($@->get_msg, "The revision being read has been discarded - you should call Xapian::Database::reopen() and retry the operation", "get_msg works");
+
+# WritableDatabase::reopen() is a no-op, but it shouldn't fail.
+$write->reopen();
+ok(1);
 
 1;

@@ -2,13 +2,6 @@
 
 include ../generic/generic.mk
 
-TESTS_ENVIRONMENT = \
-	CPPFLAGS="$(CPPFLAGS)" \
-	CXX="$(CXX)" \
-	CXXFLAGS="$(CXXFLAGS)" \
-	XAPIAN_CONFIG="$(XAPIAN_CONFIG)" \
-	prove -I. -I"$(srcdir)"
-
 ## Test programs to be run
 TESTS = \
 	t/01use.t \
@@ -24,12 +17,24 @@ TESTS = \
 	t/parser.t \
 	t/search.t \
 	t/sorter.t \
+	t/stem.t \
 	t/symbol-test.t \
 	t/termgenerator.t \
 	t/thread.t \
 	t/tied.t \
 	t/valuerange.t \
 	t/writabledatabase.t
+AM_TESTS_ENVIRONMENT = \
+	CPPFLAGS="$(CPPFLAGS)" ;\
+	CXX="$(CXX)" ;\
+	CXXFLAGS="$(CXXFLAGS)" ;\
+	XAPIAN_CONFIG="$(XAPIAN_CONFIG)" ;\
+	export CPPFLAGS ;\
+	export CXX ;\
+	export CXXFLAGS ;\
+	export XAPIAN_CONFIG ;
+LOG_COMPILER = $(PROVE)
+AM_LOG_FLAGS = -I. -I'$(srcdir)'
 
 clean-local:
 	rm -rf testdb* auto
@@ -45,6 +50,7 @@ auto/Search/Xapian/Xapian$(PERL_SO): Xapian.la
 	rm -f libtoolconfig.tmp
 
 EXTRA_DIST = perl.i except.i $(TESTS) \
+	generate-perl-exceptions \
 	Search/Xapian.pm xapian_wrap.cc \
 	t/symbol-test/SymbolTest.pm \
 	t/symbol-test/typemap \
@@ -145,21 +151,22 @@ docs/index.html: Search/Xapian.pm
 	pod2html Search/Xapian.pm > docs/index.html
 	rm -f pod2htm?.tmp
 
-xapian_wrap.cc Search/Xapian.pm: xapian_wrap.stamp
-	@stamp=xapian_wrap.stamp; $(make_many_locked)
-xapian_wrap.stamp: except.i
+stamp = xapian_wrap.stamp
+RUN_SWIG = stamp='$(stamp)' $(PERL) '$(top_srcdir)'/swig-depcomp $(SWIG)
+
+xapian_wrap.cc Search/Xapian.pm: $(stamp)
+	$(make_many_locked)
+$(stamp): except.i
 	$(multitarget_begin)
 	test -d Search || mkdir Search
-	$(SWIG) $(SWIG_WERROR) -I. -I'$(srcdir)' $(SWIG_FLAGS) -c++ \
+	$(RUN_SWIG) $(SWIG_WERROR) -I. -I'$(srcdir)' $(SWIG_FLAGS) -c++ \
 	    -perl -module Search::Xapian -proxy -const \
-	    -o xapian_wrap.cc -MD -MF xapian_wrap_d.tmp '$(srcdir)/'perl.i
-	$(PERL) -pi -e 's!xapian_wrap.cc:!xapian_wrap.stamp:!' xapian_wrap_d.tmp
-	mv xapian_wrap_d.tmp xapian_wrap.d
+	    -o xapian_wrap.cc '$(srcdir)/'perl.i
 	mv Xapian.pm Search/Xapian.pm
 	$(multitarget_end)
 
 -include xapian_wrap.d
 
-CLEANFILES = pod2htm?.tmp xapian_wrap.d xapian_wrap.stamp
+CLEANFILES = pod2htm?.tmp xapian_wrap.d $(stamp)
 endif
 MAINTAINERCLEANFILES = $(BUILT_SOURCES)

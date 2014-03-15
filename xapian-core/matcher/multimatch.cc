@@ -2,7 +2,7 @@
  *
  * Copyright 1999,2000,2001 BrightStation PLC
  * Copyright 2001,2002 Ananova Ltd
- * Copyright 2002,2003,2004,2005,2006,2007,2008,2009,2010,2011 Olly Betts
+ * Copyright 2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2013,2014 Olly Betts
  * Copyright 2003 Orange PCS Ltd
  * Copyright 2003 Sam Liddicott
  * Copyright 2007,2008,2009 Lemur Consulting Ltd
@@ -34,14 +34,13 @@
 #include "localsubmatch.h"
 #include "omassert.h"
 #include "api/omenquireinternal.h"
+#include "realtime.h"
 
 #include "api/emptypostlist.h"
 #include "branchpostlist.h"
 #include "mergepostlist.h"
 
 #include "backends/document.h"
-
-#include "submatch.h"
 
 #include "msetcmp.h"
 
@@ -63,6 +62,73 @@
 #include <vector>
 #include <map>
 #include <set>
+
+#ifdef HAVE_TIMER_CREATE
+#include <signal.h>
+#include <time.h>
+
+extern "C" {
+
+static void
+set_timeout_flag(union sigval sv)
+{
+    *(reinterpret_cast<volatile bool*>(sv.sival_ptr)) = true;
+}
+
+}
+
+#ifdef __sun
+// Solaris defines CLOCK_MONOTONIC, but "man timer_create" doesn't mention it
+// and using it fails.
+const clockid_t TIMEOUT_CLOCK = CLOCK_REALTIME;
+#else
+const clockid_t TIMEOUT_CLOCK = CLOCK_MONOTONIC;
+#endif
+
+class TimeOut {
+    struct sigevent sev;
+    timer_t timerid;
+    volatile bool expired;
+
+  public:
+    TimeOut(double limit) : expired(false) {
+	if (limit > 0) {
+	    sev.sigev_notify = SIGEV_THREAD;
+	    sev.sigev_notify_function = set_timeout_flag;
+	    sev.sigev_notify_attributes = NULL;
+	    sev.sigev_value.sival_ptr =
+		static_cast<void*>(const_cast<bool*>(&expired));
+	    if (usual(timer_create(TIMEOUT_CLOCK, &sev, &timerid) == 0)) {
+		struct itimerspec interval;
+		interval.it_interval.tv_sec = 0;
+		interval.it_interval.tv_nsec = 0;
+		RealTime::to_timespec(limit, &interval.it_value);
+		if (usual(timer_settime(timerid, 0, &interval, NULL) == 0)) {
+		    // Timeout successfully set.
+		    return;
+		}
+		timer_delete(timerid);
+	    }
+	}
+	sev.sigev_notify = SIGEV_NONE;
+    }
+
+    ~TimeOut() {
+	if (sev.sigev_notify != SIGEV_NONE) {
+	    timer_delete(timerid);
+	    sev.sigev_notify = SIGEV_NONE;
+	}
+    }
+
+    bool timed_out() const { return expired; }
+};
+#else
+class TimeOut {
+  public:
+    TimeOut(double) { }
+    bool timed_out() const { return false; }
+};
+#endif
 
 using namespace std;
 using Xapian::Internal::intrusive_ptr;
@@ -213,6 +279,7 @@ MultiMatch::MultiMatch(const Xapian::Database &db_,
 		       Xapian::valueno sort_key_,
 		       Xapian::Enquire::Internal::sort_setting sort_by_,
 		       bool sort_value_forward_,
+		       double time_limit_,
 		       Xapian::ErrorHandler * errorhandler_,
 		       Xapian::Weight::Internal & stats,
 		       const Xapian::Weight * weight_,
@@ -224,11 +291,12 @@ MultiMatch::MultiMatch(const Xapian::Database &db_,
 	  order(order_),
 	  sort_key(sort_key_), sort_by(sort_by_),
 	  sort_value_forward(sort_value_forward_),
+	  time_limit(time_limit_),
 	  errorhandler(errorhandler_), weight(weight_),
 	  is_remote(db.internal.size()),
 	  matchspies(matchspies_)
 {
-    LOGCALL_CTOR(MATCH, "MultiMatch", db_ | query_ | qlen | omrset | collapse_max_ | collapse_key_ | percent_cutoff_ | weight_cutoff_ | int(order_) | sort_key_ | int(sort_by_) | sort_value_forward_ | errorhandler_ | stats | weight_ | matchspies_ | have_sorter | have_mdecider);
+    LOGCALL_CTOR(MATCH, "MultiMatch", db_ | query_ | qlen | omrset | collapse_max_ | collapse_key_ | percent_cutoff_ | weight_cutoff_ | int(order_) | sort_key_ | int(sort_by_) | sort_value_forward_ | time_limit_| errorhandler_ | stats | weight_ | matchspies_ | have_sorter | have_mdecider);
 
     if (query.empty()) return;
 
@@ -251,8 +319,11 @@ MultiMatch::MultiMatch(const Xapian::Database &db_,
 		if (have_mdecider) {
 		    throw Xapian::UnimplementedError("Xapian::MatchDecider not supported for the remote backend");
 		}
+		// FIXME: Remote handling for time_limit with multiple
+		// databases may need some work.
 		rem_db->set_query(query, qlen, collapse_max, collapse_key,
 				  order, sort_key, sort_by, sort_value_forward,
+				  time_limit,
 				  percent_cutoff, weight_cutoff, weight,
 				  subrsets[i], matchspies);
 		bool decreasing_relevance =
@@ -319,6 +390,8 @@ MultiMatch::get_mset(Xapian::doccount first, Xapian::doccount maxitems,
     }
 
     Assert(!leaves.empty());
+
+    TimeOut timeout(time_limit);
 
 #ifdef XAPIAN_HAS_REMOTE_BACKEND
     // If there's only one database and it's remote, we can just unserialise
@@ -579,6 +652,10 @@ MultiMatch::get_mset(Xapian::doccount first, Xapian::doccount maxitems,
 	vsdoc.set_document(did);
 	LOGLINE(MATCH, "Candidate document id " << did << " wt " << wt);
 	Xapian::Internal::MSetItem new_item(wt, did);
+	if (check_at_least > maxitems && timeout.timed_out()) {
+	    check_at_least = maxitems;
+	}
+
 	if (sort_by != REL) {
 	    if (sorter) {
 		new_item.sort_key = (*sorter)(doc);
@@ -815,11 +892,6 @@ new_greatest_weight:
 
     double percent_scale = 0;
     if (!items.empty() && greatest_wt > 0) {
-	// Find the document with the highest weight, then total up the
-	// weights for the terms it contains
-	vector<Xapian::Internal::MSetItem>::const_iterator best;
-	best = min_element(items.begin(), items.end(), mcmp);
-
 #ifdef XAPIAN_HAS_REMOTE_BACKEND
 	if (greatest_wt_subqs_db_num != UINT_MAX) {
 	    const unsigned int n = greatest_wt_subqs_db_num;
@@ -857,7 +929,6 @@ new_greatest_weight:
 	    }
 #endif
 	}
-	percent_scale *= 100.0;
     }
 
     LOGLINE(MATCH,
@@ -1045,7 +1116,7 @@ new_greatest_weight:
 	    vector<Xapian::Internal::MSetItem>::reverse_iterator nth;
 	    nth = items.rbegin() + first;
 	    nth_element(items.rbegin(), nth, items.rend(), mcmp);
-	    // Erase the trailing ``first'' elements
+	    // Erase the trailing "first" elements
 	    items.erase(items.begin() + items.size() - first, items.end());
 	}
     }
@@ -1075,9 +1146,10 @@ new_greatest_weight:
     // is any more.  If we keep or find references we won't need to mess with
     // is_heap so much maybe?
     if (!items.empty() && collapser && !collapser.empty()) {
-	// Nicked this formula from above, but for some reason percent_scale
-	// has since been multiplied by 100 so we take that into account
-	double min_wt = percent_cutoff_factor / (percent_scale / 100);
+	// Nicked this formula from above.
+	double min_wt = 0.0;
+	if (percent_scale > 0.0)
+	    min_wt = percent_cutoff_factor / percent_scale;
 	Xapian::doccount entries = collapser.entries();
 	vector<Xapian::Internal::MSetItem>::iterator i;
 	for (i = items.begin(); i != items.end(); ++i) {
@@ -1103,5 +1175,5 @@ new_greatest_weight:
 				       uncollapsed_estimated,
 				       max_possible, greatest_wt, items,
 				       termfreqandwts,
-				       percent_scale));
+				       percent_scale * 100.0));
 }

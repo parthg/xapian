@@ -1,6 +1,6 @@
 
-# Before `make install' is performed this script should be runnable with
-# `make test'. After `make install' it should work as `perl test.pl'
+# Before 'make install' is performed this script should be runnable with
+# 'make test'. After 'make install' it should work as 'perl test.pl'
 
 #########################
 
@@ -38,6 +38,6 @@ eval {
     Search::Xapian::Query->new("hello", 1, 2, 3, 4);
 };
 ok(defined $@, "Bad query ctor threw exception");
-like($@, qr!^USAGE: Search::Xapian::Query->new\('term'\) or Search::Xapian::Query->new\(OP, <args>\) at \S+/10query\.t line \d+$!);
+like($@, qr!^USAGE: Search::Xapian::Query->new\('term'\) or Search::Xapian::Query->new\(OP, <args>\) at \S+/10query\.t line \d+\.?$!);
 
 ok(1);

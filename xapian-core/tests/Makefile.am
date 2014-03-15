@@ -1,18 +1,14 @@
 ## Process this file with automake to produce Makefile.in
 
-AUTOMAKE_OPTIONS = 1.5 subdir-objects
-
-# `make QUIET=' overrides `./configure --enable-quiet'.
-# `make QUIET=y' overrides `./configure' without `--enable-quiet'.
-LIBTOOL = @LIBTOOL@ $(QUIET:y=--quiet)
+AUTOMAKE_OPTIONS = 1.12.2 serial-tests subdir-objects
 
 if MAINTAINER_MODE
 # Export these so that we run the locally installed autotools when building
-# from a bootstrapped SVN tree.
+# from a bootstrapped git tree.
 export ACLOCAL AUTOCONF AUTOHEADER AUTOM4TE AUTOMAKE
 endif
 
-INCLUDES = -I$(top_srcdir) -I$(top_srcdir)/common -I$(top_srcdir)/include \
+AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/common -I$(top_srcdir)/include \
  -I$(top_builddir)/include -I$(srcdir)/harness
 
 CLEANFILES =
@@ -122,6 +118,7 @@ collated_apitest_sources = \
  api_compact.cc \
  api_db.cc \
  api_generated.cc \
+ api_geospatial.cc \
  api_matchspy.cc \
  api_metadata.cc \
  api_nodb.cc \
@@ -144,33 +141,33 @@ collated_apitest_sources = \
  api_unicode.cc \
  api_valuestats.cc \
  api_valuestream.cc \
- api_geospatial.cc \
+ api_weight.cc \
  api_wrdb.cc
 
 apitest_SOURCES = apitest.cc dbcheck.cc $(collated_apitest_sources) \
  api_all.h api_collated.h $(testharness_sources)
 
-apitest_LDFLAGS = -no-install $(ldflags)
+apitest_LDFLAGS = @NO_INSTALL@ $(ldflags)
 apitest_LDADD = ../libgetopt.la ../$(libxapian_la)
 
 stemtest_SOURCES = stemtest.cc $(testharness_sources)
-stemtest_LDFLAGS = -no-install $(ldflags)
+stemtest_LDFLAGS = @NO_INSTALL@ $(ldflags)
 stemtest_LDADD = ../libgetopt.la ../$(libxapian_la)
 
 internaltest_SOURCES = internaltest.cc $(testharness_sources)
-internaltest_LDFLAGS = -no-install $(ldflags)
+internaltest_LDFLAGS = @NO_INSTALL@ $(ldflags)
 internaltest_LDADD = ../libgetopt.la ../$(libxapian_la)
 
 queryparsertest_SOURCES = queryparsertest.cc $(testharness_sources)
-queryparsertest_LDFLAGS = -no-install $(ldflags)
+queryparsertest_LDFLAGS = @NO_INSTALL@ $(ldflags)
 queryparsertest_LDADD = ../libgetopt.la ../$(libxapian_la)
 
 termgentest_SOURCES = termgentest.cc $(testharness_sources)
-termgentest_LDFLAGS = -no-install $(ldflags)
+termgentest_LDFLAGS = @NO_INSTALL@ $(ldflags)
 termgentest_LDADD = ../libgetopt.la ../$(libxapian_la)
 
 unittest_SOURCES = unittest.cc $(utestharness_sources)
-unittest_LDFLAGS = -no-install $(ldflags)
+unittest_LDFLAGS = @NO_INSTALL@ $(ldflags)
 unittest_LDADD = ../libgetopt.la
 
 BUILT_SOURCES =
@@ -234,7 +231,7 @@ clean-local: remove-cached-databases
 
 # Remove the cached databases before "make check" to avoid issues with missing
 # bugs in database creation when we reuse databases from a previous test run.
-check-local: remove-cached-databases
+check: remove-cached-databases
 
 include harness/Makefile.mk
 include perftest/Makefile.mk
@@ -246,5 +243,11 @@ check_SCRIPTS += zlib-vg.so
 CLEANFILES += zlib-vg.so
 
 zlib-vg.so: zlib-vg.c
-	$(CC_FOR_BUILD) -fPIC -shared -ldl -o zlib-vg.so $(srcdir)/zlib-vg.c
+	$(CC_FOR_BUILD) -fPIC -shared -o zlib-vg.so $(srcdir)/zlib-vg.c -ldl
 endif
+
+
+.PHONY: check-syntax
+
+check-syntax:
+	$(CXXCOMPILE) -fsyntax-only -gstabs+ $(CHK_SOURCES)

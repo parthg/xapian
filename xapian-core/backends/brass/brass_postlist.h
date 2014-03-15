@@ -3,7 +3,7 @@
  */
 /* Copyright 1999,2000,2001 BrightStation PLC
  * Copyright 2002 Ananova Ltd
- * Copyright 2002,2003,2004,2005,2007,2008,2009,2011 Olly Betts
+ * Copyright 2002,2003,2004,2005,2007,2008,2009,2011,2013 Olly Betts
  * Copyright 2007,2009 Lemur Consulting Ltd
  *
  * This program is free software; you can redistribute it and/or
@@ -71,9 +71,9 @@ class BrassPostListTable : public BrassTable {
 	      doclen_pl()
 	{ }
 
-	bool open(brass_revision_number_t revno) {
+	bool open(int flags_, brass_revision_number_t revno) {
 	    doclen_pl.reset(0);
-	    return BrassTable::open(revno);
+	    return BrassTable::open(flags_, revno);
 	}
 
 	/// Merge changes for a term.
@@ -125,7 +125,6 @@ class BrassPostListTable : public BrassTable {
 /** A postlist in a brass database.
  */
 class BrassPostList : public LeafPostList {
-    protected: // BrassModifiedPostList needs to access these.
 	/** The database we are searching.  This pointer is held so that the
 	 *  database doesn't get deleted before us, and also to give us access
 	 *  to the position_table.
@@ -138,7 +137,6 @@ class BrassPostList : public LeafPostList {
 	/// Whether we've started reading the list yet.
 	bool have_started;
 
-    private:
 	/// True if this is the last chunk.
 	bool is_last_chunk;
 
@@ -220,6 +218,12 @@ class BrassPostList : public LeafPostList {
 	 */
 	bool move_forward_in_chunk_to_at_least(Xapian::docid desired_did);
 
+	BrassPostList(Xapian::Internal::intrusive_ptr<const BrassDatabase> this_db_,
+		      const string & term,
+		      BrassCursor * cursor_);
+
+	void init();
+
     public:
 	/// Default constructor.
 	BrassPostList(Xapian::Internal::intrusive_ptr<const BrassDatabase> this_db_,
@@ -228,6 +232,8 @@ class BrassPostList : public LeafPostList {
 
 	/// Destructor.
 	~BrassPostList();
+
+	LeafPostList * open_nearby_postlist(const std::string & term_) const;
 
 	/** Used for looking up doclens.
 	 *
