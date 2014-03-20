@@ -31,6 +31,7 @@
 #include "str.h"
 #include "stringutils.h"
 #include <string.h>
+#include <unistd.h>
 
 #include <list>
 #include <string>
