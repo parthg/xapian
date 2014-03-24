@@ -134,12 +134,23 @@ Letor::Internal::letor_score(const Xapian::MSet & mset) {
     std::vector<double> scores = ranker.rank(rlist);
     
     /*Converting list<double> scores to map<docid,double> letor_mset*/
-    int num_fv = scores.size();
-    for(int i=0; i<num_fv; ++i) {
+
+    int score_iter = 0;
+    for (Xapian::MSetIterator i = mset.begin(); i != mset.end(); ++i) {
+        Xapian::Document doc = i.get_document();
+	Xapian::docid did = doc.get_docid();
+	letor_mset.insert(pair<Xapian::docid,double>(did, scores[score_iter]));
+	score_iter++;
+    }
+
+    /*
+    int rl_size = scores.size();
+    for(int i=0; i<rl_size; ++i) {
 	//Xapian::docid did = (Xapian::docid) rlist.rl[i].did;//need to convert did from string to Xapian::docid
 	Xapian::docid did = (Xapian::docid) atoi(rlist.rl[i].did.c_str());//need to convert did from string to Xapian::docid
 	letor_mset.insert(pair<Xapian::docid,double>(did, scores[i]));
     }
+    */
     
     return letor_mset;
 }
