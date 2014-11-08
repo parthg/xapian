@@ -38,14 +38,14 @@ endif
 
 if DOCUMENTATION_RULES
 bin/letor-request.1: bin/letor-request$(EXEEXT) makemanpage
-	./makemanpage bin/letor-request$(srcdir)/bin/letor-request.cc bin/letor-request.1
+	./makemanpage bin/letor-request $(srcdir)/bin/letor-request.cc bin/letor-request.1
 
 bin/letor-prepare.1: bin/letor-prepare$(EXEEXT) makemanpage
-	./makemanpage bin/letor-prepare$(srcdir)/bin/letor-prepare.cc bin/letor-prepare.1
+	./makemanpage bin/letor-prepare $(srcdir)/bin/letor-prepare.cc bin/letor-prepare.1
 
 bin/letor-train.1: bin/letor-train$(EXEEXT) makemanpage
-	./makemanpage bin/letor-train$(srcdir)/bin/letor-train.cc bin/letor-train.1
+	./makemanpage bin/letor-train $(srcdir)/bin/letor-train.cc bin/letor-train.1
 
 bin/letor-select.1: bin/letor-select$(EXEEXT) makemanpage
-	./makemanpage bin/letor-select$(srcdir)/bin/letor-select.cc bin/letor-select.1
+	./makemanpage bin/letor-select $(srcdir)/bin/letor-select.cc bin/letor-select.1
 endif
