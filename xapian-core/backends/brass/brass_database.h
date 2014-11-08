@@ -28,10 +28,10 @@
 #include "backends/database.h"
 #include "brass_changes.h"
 #include "brass_dbstats.h"
+#include "brass_docdata.h"
 #include "brass_inverter.h"
 #include "brass_positionlist.h"
 #include "brass_postlist.h"
-#include "brass_record.h"
 #include "brass_spelling.h"
 #include "brass_synonym.h"
 #include "brass_termlisttable.h"
@@ -102,9 +102,9 @@ class BrassDatabase : public Xapian::Database::Internal {
 	 */
 	mutable BrassSpellingTable spelling_table;
 
-	/** Table storing records.
+	/** Table storing document data.
 	 */
-	BrassRecordTable record_table;
+	BrassDocDataTable docdata_table;
 
 	/// Lock object.
 	FlintLock lock;
@@ -143,13 +143,6 @@ class BrassDatabase : public Xapian::Database::Internal {
 	 *  can't be acquired and the database doesn't exist.
 	 */
 	void get_database_write_lock(int flags, bool creating);
-
-	/** Open tables at specified revision number.
-	 *
-	 *  @exception Xapian::InvalidArgumentError is thrown if the specified
-	 *  revision is not available.
-	 */
-	void open_tables(int flags, brass_revision_number_t revision);
 
 	/** Get an object holding the next revision number which should be
 	 *  used in the tables.
@@ -255,6 +248,7 @@ class BrassDatabase : public Xapian::Database::Internal {
 	totlen_t get_total_length() const;
 	Xapian::doclength get_avlength() const;
 	Xapian::termcount get_doclength(Xapian::docid did) const;
+	Xapian::termcount get_unique_terms(Xapian::docid did) const;
 	void get_freqs(const string & term,
 		       Xapian::doccount * termfreq_ptr,
 		       Xapian::termcount * collfreq_ptr) const;

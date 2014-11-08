@@ -476,8 +476,8 @@ bool
 ChertDatabase::reopen()
 {
     LOGCALL(DB, bool, "ChertDatabase::reopen", NO_ARGS);
-    if (!readonly) return false;
-    return open_tables_consistent();
+    if (!readonly) RETURN(false);
+    RETURN(open_tables_consistent());
 }
 
 void
@@ -782,12 +782,23 @@ ChertDatabase::get_doclength(Xapian::docid did) const
     RETURN(postlist_table.get_doclength(did, ptrtothis));
 }
 
+Xapian::termcount
+ChertDatabase::get_unique_terms(Xapian::docid did) const
+{
+    LOGCALL(DB, Xapian::termcount, "ChertDatabase::get_unique_terms", did);
+    Assert(did != 0);
+    intrusive_ptr<const ChertDatabase> ptrtothis(this);
+    ChertTermList termlist(ptrtothis, did);
+    // The "approximate" size should be exact in this case.
+    RETURN(termlist.get_approx_size());
+}
+
 void
 ChertDatabase::get_freqs(const string & term,
 			 Xapian::doccount * termfreq_ptr,
 			 Xapian::termcount * collfreq_ptr) const
 {
-    LOGCALL(DB, Xapian::doccount, "ChertDatabase::get_freqs", term | termfreq_ptr | collfreq_ptr);
+    LOGCALL_VOID(DB, "ChertDatabase::get_freqs", term | termfreq_ptr | collfreq_ptr);
     Assert(!term.empty());
     postlist_table.get_freqs(term, termfreq_ptr, collfreq_ptr);
 }
@@ -838,7 +849,7 @@ ChertDatabase::term_exists(const string & term) const
 {
     LOGCALL(DB, bool, "ChertDatabase::term_exists", term);
     Assert(!term.empty());
-    return postlist_table.term_exists(term);
+    RETURN(postlist_table.term_exists(term));
 }
 
 bool
@@ -972,9 +983,9 @@ ChertDatabase::open_metadata_keylist(const std::string &prefix) const
 {
     LOGCALL(DB, TermList *, "ChertDatabase::open_metadata_keylist", NO_ARGS);
     ChertCursor * cursor = postlist_table.cursor_get();
-    if (!cursor) return NULL;
-    return new ChertMetadataTermList(intrusive_ptr<const ChertDatabase>(this),
-				     cursor, prefix);
+    if (!cursor) RETURN(NULL);
+    RETURN(new ChertMetadataTermList(intrusive_ptr<const ChertDatabase>(this),
+				     cursor, prefix));
 }
 
 string
@@ -1482,7 +1493,7 @@ ChertWritableDatabase::get_freqs(const string & term,
 				 Xapian::doccount * termfreq_ptr,
 				 Xapian::termcount * collfreq_ptr) const
 {
-    LOGCALL(DB, void, "ChertWritableDatabase::get_freqs", term | termfreq_ptr | collfreq_ptr);
+    LOGCALL_VOID(DB, "ChertWritableDatabase::get_freqs", term | termfreq_ptr | collfreq_ptr);
     Assert(!term.empty());
     ChertDatabase::get_freqs(term, termfreq_ptr, collfreq_ptr);
     map<string, pair<termcount_diff, termcount_diff> >::const_iterator i;

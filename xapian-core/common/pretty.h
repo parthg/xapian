@@ -1,7 +1,7 @@
 /** @file pretty.h
  * @brief Convert types to pretty representations
  */
-/* Copyright (C) 2010,2011,2012 Olly Betts
+/* Copyright (C) 2010,2011,2012,2014 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,9 +30,6 @@
 #include "xapian/intrusive_ptr.h"
 #include "xapian/types.h"
 
-namespace Xapian {
-namespace Internal {
-
 template<class S>
 struct PrettyOStream {
     /// The std::ostream object we're outputting to.
@@ -50,12 +47,6 @@ struct Literal {
     Literal(const char * lit) : _lit(lit) { }
     Literal(const std::string & s) : _lit(s.c_str()) { }
 };
-
-}
-}
-
-using Xapian::Internal::PrettyOStream;
-using Xapian::Internal::Literal;
 
 /// Default is to output as std::ostream would.
 template<class S, class T>
@@ -281,8 +272,13 @@ namespace Xapian {
     }
 }
 
+namespace Brass {
+    class RootInfo;
+}
+
 class BrassCursor;
 class BrassDatabase;
+class BrassFreeListChecker;
 class BrassTable;
 class ChertCursor;
 class ChertDatabase;
@@ -305,7 +301,9 @@ XAPIAN_PRETTY_AS_CLASSNAME(Xapian::Internal::AndContext);
 XAPIAN_PRETTY_AS_CLASSNAME(Xapian::Internal::ExpandStats);
 XAPIAN_PRETTY_AS_CLASSNAME(Xapian::Internal::ExpandWeight);
 XAPIAN_PRETTY_AS_CLASSNAME(Xapian::Internal::OrContext);
+XAPIAN_PRETTY_AS_CLASSNAME(Brass::RootInfo);
 XAPIAN_PRETTY_AS_CLASSNAME(BrassCursor);
+XAPIAN_PRETTY_AS_CLASSNAME(BrassFreeListChecker);
 XAPIAN_PRETTY_AS_CLASSNAME(BrassDatabase);
 XAPIAN_PRETTY_AS_CLASSNAME(BrassTable);
 XAPIAN_PRETTY_AS_CLASSNAME(ChertCursor);

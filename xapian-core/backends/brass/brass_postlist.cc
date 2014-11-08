@@ -730,10 +730,10 @@ BrassPostList::open_nearby_postlist(const std::string & term_) const
 {
     LOGCALL(DB, LeafPostList *, "BrassPostList::open_nearby_postlist", term_);
     if (term_.empty())
-	return NULL;
+	RETURN(NULL);
     if (!this_db.get() || this_db->postlist_table.is_writable())
-	return NULL;
-    return new BrassPostList(this_db, term_, cursor->clone());
+	RETURN(NULL);
+    RETURN(new BrassPostList(this_db, term_, cursor->clone()));
 }
 
 Xapian::termcount
@@ -743,6 +743,15 @@ BrassPostList::get_doclength() const
     Assert(have_started);
     Assert(this_db.get());
     RETURN(this_db->get_doclength(did));
+}
+
+Xapian::termcount
+BrassPostList::get_unique_terms() const
+{
+    LOGCALL(DB, Xapian::termcount, "BrassPostList::get_unique_terms", NO_ARGS);
+    Assert(have_started);
+    Assert(this_db.get());
+    RETURN(this_db->get_unique_terms(did));
 }
 
 bool

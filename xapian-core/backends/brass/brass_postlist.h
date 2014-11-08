@@ -27,8 +27,8 @@
 
 #include <xapian/database.h>
 
+#include "brass_defs.h"
 #include "brass_inverter.h"
-#include "brass_types.h"
 #include "brass_positionlist.h"
 #include "api/leafpostlist.h"
 #include "omassert.h"
@@ -256,6 +256,9 @@ class BrassPostList : public LeafPostList {
 
 	/// Returns the length of current document.
 	Xapian::termcount get_doclength() const;
+
+	/// Returns the number of unique terms in the current document.
+	Xapian::termcount get_unique_terms() const;
 
 	/** Returns the Within Document Frequency of the term in the current
 	 *  document.

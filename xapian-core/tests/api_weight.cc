@@ -51,6 +51,24 @@ DEFINE_TESTCASE(tradweight3, !backend) {
     return true;
 }
 
+// Test Exception for junk after serialised weight.
+DEFINE_TESTCASE(unigramlmweight3, !backend) {
+    Xapian::LMWeight wt(79898.0, Xapian::Weight::JELINEK_MERCER_SMOOTHING, 0.5, 1.0);
+    try {
+	Xapian::LMWeight t;
+	Xapian::LMWeight * t2 = t.unserialise(wt.serialise() + "X");
+	// Make sure we actually use the weight.
+	bool empty = t2->name().empty();
+	delete t2;
+	if (empty)
+	    FAIL_TEST("Serialised LMWeight with junk appended unserialised to empty name!");
+	FAIL_TEST("Serialised LMWeight with junk appended unserialised OK");
+    } catch (const Xapian::SerialisationError &e) {
+	// Good!
+    }
+    return true;
+}
+
 // Test exception for junk after serialised weight.
 DEFINE_TESTCASE(bm25weight3, !backend) {
     Xapian::BM25Weight wt(2.0, 0.5, 1.3, 0.6, 0.01);
@@ -656,13 +674,14 @@ class CheckInitWeight : public Xapian::Weight {
 	return new CheckInitWeight(zero_inits, non_zero_inits);
     }
 
-    double get_sumpart(Xapian::termcount, Xapian::termcount) const {
+    double get_sumpart(Xapian::termcount, Xapian::termcount,
+		       Xapian::termcount) const {
 	return 1.0;
     }
 
     double get_maxpart() const { return 1.0; }
 
-    double get_sumextra(Xapian::termcount doclen) const {
+    double get_sumextra(Xapian::termcount doclen, Xapian::termcount) const {
 	return 1.0 / doclen;
     }
 
@@ -721,6 +740,7 @@ class CheckStatsWeight : public Xapian::Weight {
 	need_stat(DOC_LENGTH_MAX);
 	need_stat(WDF_MAX);
 	need_stat(COLLECTION_FREQ);
+	need_stat(UNIQUE_TERMS);
     }
 
     void init(double factor_) {
@@ -731,7 +751,8 @@ class CheckStatsWeight : public Xapian::Weight {
 	return new CheckStatsWeight(db, term, sum, sum_squares);
     }
 
-    double get_sumpart(Xapian::termcount wdf, Xapian::termcount doclen) const {
+    double get_sumpart(Xapian::termcount wdf, Xapian::termcount doclen,
+		       Xapian::termcount uniqueterms) const {
 	TEST_EQUAL(get_collection_size(), db.get_doccount());
 	TEST_EQUAL(get_collection_freq(), db.get_collection_freq(term));
 	TEST_EQUAL(get_rset_size(), 0);
@@ -742,6 +763,8 @@ class CheckStatsWeight : public Xapian::Weight {
 	TEST_EQUAL(get_wqf(), 1);
 	TEST_REL(doclen,>=,len_lower);
 	TEST_REL(doclen,<=,len_upper);
+	TEST_REL(uniqueterms,>=,1);
+	TEST_REL(uniqueterms,<=,doclen);
 	TEST_REL(wdf,<=,wdf_upper);
 	sum += wdf;
 	sum_squares += wdf * wdf;
@@ -757,7 +780,7 @@ class CheckStatsWeight : public Xapian::Weight {
 	return 1.0;
     }
 
-    double get_sumextra(Xapian::termcount doclen) const {
+    double get_sumextra(Xapian::termcount doclen, Xapian::termcount) const {
 	return 1.0 / doclen;
     }
 
@@ -794,6 +817,68 @@ DEFINE_TESTCASE(checkstatsweight1, backend && !remote) {
 	}
 	TEST_EQUAL(sum, expected_sum);
 	TEST_EQUAL(sum_squares, expected_sum_squares);
+    }
+    return true;
+}
+
+// Two stage should perform same as Jelinek mercer if smoothing parameter for mercer is kept 1 in both.
+DEFINE_TESTCASE(unigramlmweight4, backend) {
+    Xapian::Database db = get_database("apitest_simpledata");
+    Xapian::Enquire enquire1(db);
+    Xapian::Enquire enquire2(db);
+    enquire1.set_query(Xapian::Query("paragraph"));
+    Xapian::MSet mset1;
+    enquire2.set_query(Xapian::Query("paragraph"));
+    Xapian::MSet mset2;
+    // 5 documents available with term paragraph so mset size should be 5
+    enquire1.set_weighting_scheme(Xapian::LMWeight(0, Xapian::Weight::TWO_STAGE_SMOOTHING, 1, 0));
+    enquire2.set_weighting_scheme(Xapian::LMWeight(0, Xapian::Weight::JELINEK_MERCER_SMOOTHING, 1, 0));
+    mset1 = enquire1.get_mset(0, 10);
+    mset2 = enquire2.get_mset(0, 10);
+
+    TEST_EQUAL(mset1.size(), 5);
+    TEST_EQUAL_DOUBLE(mset1[1].get_weight(), mset2[1].get_weight());
+    return true;
+}
+
+/* Test for checking if we don't use smoothing all
+ * of them should give same result i.e wdf_double/len_double */
+DEFINE_TESTCASE(unigramlmweight5, backend) {
+    Xapian::Database db = get_database("apitest_simpledata");
+    Xapian::Enquire enquire1(db);
+    Xapian::Enquire enquire2(db);
+    Xapian::Enquire enquire3(db);
+    Xapian::Enquire enquire4(db);
+    enquire1.set_query(Xapian::Query("paragraph"));
+    Xapian::MSet mset1;
+    enquire2.set_query(Xapian::Query("paragraph"));
+    Xapian::MSet mset2;
+    enquire3.set_query(Xapian::Query("paragraph"));
+    Xapian::MSet mset3;
+    enquire4.set_query(Xapian::Query("paragraph"));
+    Xapian::MSet mset4;
+    // 5 documents available with term paragraph so mset size should be 5
+    enquire1.set_weighting_scheme(Xapian::LMWeight(10000.0, Xapian::Weight::TWO_STAGE_SMOOTHING, 0, 0));
+    enquire2.set_weighting_scheme(Xapian::LMWeight(10000.0, Xapian::Weight::JELINEK_MERCER_SMOOTHING, 0, 0));
+    enquire3.set_weighting_scheme(Xapian::LMWeight(10000.0, Xapian::Weight::ABSOLUTE_DISCOUNT_SMOOTHING, 0, 0));
+    enquire4.set_weighting_scheme(Xapian::LMWeight(10000.0, Xapian::Weight::DIRICHLET_SMOOTHING, 0, 0));
+
+    mset1 = enquire1.get_mset(0, 10);
+    mset2 = enquire2.get_mset(0, 10);
+    mset3 = enquire3.get_mset(0, 10);
+    mset4 = enquire4.get_mset(0, 10);
+
+    TEST_EQUAL(mset1.size(), 5);
+    TEST_EQUAL(mset2.size(), 5);
+    TEST_EQUAL(mset3.size(), 5);
+    TEST_EQUAL(mset4.size(), 5);
+    for (size_t i = 0; i < 5; i++) {
+	TEST_EQUAL_DOUBLE(mset3[i].get_weight(), mset4[i].get_weight());
+	TEST_EQUAL_DOUBLE(mset2[i].get_weight(), mset4[i].get_weight());
+	TEST_EQUAL_DOUBLE(mset1[i].get_weight(), mset2[i].get_weight());
+	TEST_EQUAL_DOUBLE(mset3[i].get_weight(), mset2[i].get_weight());
+	TEST_EQUAL_DOUBLE(mset1[i].get_weight(), mset4[i].get_weight());
+	TEST_EQUAL_DOUBLE(mset1[i].get_weight(), mset3[i].get_weight());
     }
     return true;
 }

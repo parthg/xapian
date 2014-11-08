@@ -1598,8 +1598,8 @@ ChertTable::lazy_alloc_inflate_zstream() const {
 bool
 ChertTable::exists() const {
     LOGCALL(DB, bool, "ChertTable::exists", NO_ARGS);
-    return (file_exists(name + "DB") &&
-	    (file_exists(name + "baseA") || file_exists(name + "baseB")));
+    RETURN(file_exists(name + "DB") &&
+	   (file_exists(name + "baseA") || file_exists(name + "baseB")));
 }
 
 void
@@ -1790,7 +1790,7 @@ ChertTable::commit(chert_revision_number_t revision, int changes_fd,
 	// Do this as late as possible to allow maximum time for writes to
 	// happen, and so the calls to io_sync() are adjacent which may be
 	// more efficient, at least with some Linux kernel versions.
-	if (!io_sync(handle)) {
+	if (changes_tail ? !io_full_sync(handle) : !io_sync(handle)) {
 	    (void)::close(handle);
 	    handle = -1;
 	    (void)unlink(tmp.c_str());

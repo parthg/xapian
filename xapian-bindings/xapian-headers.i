@@ -21,6 +21,10 @@
  */
 %}
 
+/* Ignore these functions: */
+%ignore Xapian::iterator_rewind;
+%ignore Xapian::iterator_valid;
+
 /* A class which can usefully be subclassed in the target language. */
 %define SUBCLASSABLE(NS, CLASS)
     %ignore NS::CLASS::clone;
@@ -124,6 +128,9 @@
 %exception Xapian::version_string "$action"
 %include <xapian.h>
 
+// Disable errors about not including headers individually.
+#define XAPIAN_IN_XAPIAN_H
+
 /* We don't wrap the version macros - they're useful for compile time checks
  * in C++ code, but for a scripting language, the version functions tell us
  * the version of Xapian we're actually using, which is more interesting than
@@ -138,10 +145,8 @@ CONSTANT(int, Xapian, DB_CREATE);
 CONSTANT(int, Xapian, DB_CREATE_OR_OPEN);
 CONSTANT(int, Xapian, DB_CREATE_OR_OVERWRITE);
 CONSTANT(int, Xapian, DB_OPEN);
-%ignore Xapian::DB_ACTION_MASK_;
-%ignore Xapian::DB_BACKEND_MASK_;
-%ignore Xapian::DB_READONLY_;
 CONSTANT(int, Xapian, DB_NO_SYNC);
+CONSTANT(int, Xapian, DB_FULL_SYNC);
 CONSTANT(int, Xapian, DB_DANGEROUS);
 CONSTANT(int, Xapian, DB_NO_TERMLIST);
 CONSTANT(int, Xapian, DB_BACKEND_BRASS);
@@ -149,6 +154,7 @@ CONSTANT(int, Xapian, DB_BACKEND_CHERT);
 CONSTANT(int, Xapian, DB_BACKEND_STUB);
 CONSTANT(int, Xapian, DBCHECK_SHORT_TREE);
 CONSTANT(int, Xapian, DBCHECK_FULL_TREE);
+CONSTANT(int, Xapian, DBCHECK_SHOW_FREELIST);
 CONSTANT(int, Xapian, DBCHECK_SHOW_BITMAP);
 CONSTANT(int, Xapian, DBCHECK_SHOW_STATS);
 CONSTANT(int, Xapian, DBCHECK_FIX);

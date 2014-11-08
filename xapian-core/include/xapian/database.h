@@ -25,7 +25,7 @@
 #ifndef XAPIAN_INCLUDED_DATABASE_H
 #define XAPIAN_INCLUDED_DATABASE_H
 
-#if !defined XAPIAN_INCLUDED_XAPIAN_H && !defined XAPIAN_LIB_BUILD
+#if !defined XAPIAN_IN_XAPIAN_H && !defined XAPIAN_LIB_BUILD
 # error "Never use <xapian/database.h> directly; include <xapian.h> instead."
 #endif
 
@@ -330,6 +330,9 @@ class XAPIAN_VISIBILITY_DEFAULT Database {
 
 	/// Get the length of a document.
 	Xapian::termcount get_doclength(Xapian::docid did) const;
+
+	/// Get the number of unique terms in document.
+	Xapian::termcount get_unique_terms(Xapian::docid did) const;
 
 	/** Send a "keep-alive" to remote databases to stop them timing out.
 	 *

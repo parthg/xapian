@@ -1,7 +1,7 @@
 /** @file query.h
  * @brief Xapian::Query API class
  */
-/* Copyright (C) 2011,2012,2013 Olly Betts
+/* Copyright (C) 2011,2012,2013,2014 Olly Betts
  * Copyright (C) 2008 Richard Boulton
  *
  * This program is free software; you can redistribute it and/or
@@ -22,7 +22,7 @@
 #ifndef XAPIAN_INCLUDED_QUERY_H
 #define XAPIAN_INCLUDED_QUERY_H
 
-#if !defined XAPIAN_INCLUDED_XAPIAN_H && !defined XAPIAN_LIB_BUILD
+#if !defined XAPIAN_IN_XAPIAN_H && !defined XAPIAN_LIB_BUILD
 # error "Never use <xapian/query.h> directly; include <xapian.h> instead."
 #endif
 
@@ -251,12 +251,8 @@ class XAPIAN_VISIBILITY_DEFAULT Query {
 	return (*this = Query(1.0 / factor, *this));
     }
 
-    /** @private @internal
-     *
-     *  Pass a reference to avoid ambiguity for Query(NULL) (not useful, but the
-     *  testsuite does it...)  FIXME
-     */
-    Query(Internal & internal_) : internal(&internal_) { }
+    /** @private @internal */
+    Query(Internal * internal_) : internal(internal_) { }
 
   private:
     void init(Query::op op_, size_t n_subqueries, Xapian::termcount window = 0);

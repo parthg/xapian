@@ -46,6 +46,11 @@ DLHWeight::init(double factor)
     double N(get_collection_size());
     double F(get_collection_freq());
 
+    if (wdf_upper == 0) {
+	lower_bound = upper_bound = 0.0;
+	return;
+    }
+
     // Calculate the lower bound.
     double min_weight = (wdf_lower * log2((wdf_lower * get_average_length() /
 			len_upper) * (N / F)) -
@@ -58,12 +63,6 @@ DLHWeight::init(double factor)
     // Calculate constant values to be used in get_sumpart().
     log_constant = get_average_length() * N / F;
     wqf_product_factor = get_wqf() * factor;
-
-    // Calculate the upper bound.
-    if (wdf_upper == 0) {
-	upper_bound = 0.0;
-	return;
-    }
 
     // Calculate values for the upper bound.
     /* An upper bound of the term used in the third log can be obtained by
@@ -106,7 +105,8 @@ DLHWeight::unserialise(const string &) const
 }
 
 double
-DLHWeight::get_sumpart(Xapian::termcount wdf, Xapian::termcount len) const
+DLHWeight::get_sumpart(Xapian::termcount wdf, Xapian::termcount len,
+		       Xapian::termcount) const
 {
     if (wdf == 0) return 0.0;
 
@@ -127,7 +127,7 @@ DLHWeight::get_maxpart() const
 }
 
 double
-DLHWeight::get_sumextra(Xapian::termcount) const
+DLHWeight::get_sumextra(Xapian::termcount, Xapian::termcount) const
 {
     return 0;
 }
