@@ -85,6 +85,7 @@ static bool follow_symlinks = false;
 static bool ignore_exclusions = false;
 static bool spelling = false;
 static off_t  max_size = 0;
+static std::string pretty_max_size;
 static bool verbose = false;
 static enum {
     EMPTY_BODY_WARN, EMPTY_BODY_INDEX, EMPTY_BODY_SKIP
@@ -350,7 +351,8 @@ index_file(const string &file, const string &url, DirectoryIterator & d,
     }
 
     if (max_size > 0 && d.get_size() > max_size) {
-	skip(file, "Larger than size limit", SKIP_VERBOSE_ONLY);
+	skip(file, "Larger than size limit of " + pretty_max_size,
+	     SKIP_VERBOSE_ONLY);
 	return;
     }
 
@@ -426,10 +428,11 @@ index_mimetype(const string & file, const string & url, const string & ext,
 		    MyHtmlParser p;
 		    p.ignore_metarobots();
 		    try {
-			// No point going looking for charset overrides as
-			// unrtf doesn't produce them.  (FIXME: not just unrtf
-			// now).
-			p.parse_html(dump, "iso-8859-1", true);
+			p.parse_html(dump, "iso-8859-1", false);
+		    } catch (const string & newcharset) {
+			p.reset();
+			p.ignore_metarobots();
+			p.parse_html(dump, newcharset, true);
 		    } catch (ReadError) {
 			skip_cmd_failed(file, cmd);
 			return;
@@ -736,30 +739,6 @@ index_mimetype(const string & file, const string & url, const string & ext,
 	    }
 
 	    generate_sample_from_csv(dump, sample, sample_size);
-	} else if (mimetype == "application/vnd.ms-outlook") {
-	    string cmd = get_pkglibbindir() + "/outlookmsg2html";
-	    append_filename_argument(cmd, file);
-	    MyHtmlParser p;
-	    p.ignore_metarobots();
-	    try {
-		dump = stdout_to_string(cmd);
-		// FIXME: what should the default charset be?
-		p.parse_html(dump, "iso-8859-1", false);
-	    } catch (const string & newcharset) {
-		p.reset();
-		p.ignore_metarobots();
-		p.parse_html(dump, newcharset, true);
-	    } catch (ReadError) {
-		skip_cmd_failed(file, cmd);
-		return;
-	    }
-	    dump = p.dump;
-	    title = p.title;
-	    keywords = p.keywords;
-	    topic = p.topic;
-	    sample = p.sample;
-	    author = p.author;
-	    created = p.created;
 	} else if (mimetype == "image/svg+xml") {
 	    SvgParser svgparser;
 	    const string & text = d.file_to_string();
@@ -1235,6 +1214,11 @@ main(int argc, char **argv)
     mime_map["xlr"] = "application/vnd.ms-excel"; // Later Microsoft Works produced XL format but with a different extension.
     mime_map["ppt"] = "application/vnd.ms-powerpoint";
     mime_map["pps"] = "application/vnd.ms-powerpoint"; // Powerpoint slideshow
+    // Adobe PageMaker apparently uses .pub for an unrelated format, but
+    // libmagic seems to misidentify MS .pub as application/msword, so we
+    // can't just leave it to libmagic.  We don't handle Adobe PageMaker
+    // files yet, so this isn't a big issue currently.
+    mime_map["pub"] = "application/x-mspublisher";
     mime_map["msg"] = "application/vnd.ms-outlook"; // Outlook .msg email
 
     // Perl:
@@ -1306,10 +1290,15 @@ main(int argc, char **argv)
     // (as it is in CP1250).
     commands["image/vnd.djvu"] = Filter("djvutxt");
     // The --text option unhelpfully converts all non-ASCII characters to "?"
-    // so we use --html instead, which produces HTML entities.  Currently the
-    // --nopict option doesn't work, but hopefully it'll get fixed.
+    // so we use --html instead, which produces HTML entities.  The --nopict
+    // option suppresses exporting picture files as pictNNNN.wmf in the current
+    // directory.  Note that this option was ignored in some older versions,
+    // but it was fixed in unrtf 0.20.4.
     commands["text/rtf"] = Filter("unrtf --nopict --html 2>/dev/null", "text/html");
     commands["text/x-rst"] = Filter("rst2html", "text/html");
+    commands["application/x-mspublisher"] = Filter("pub2xhtml", "text/html");
+    commands["application/vnd.ms-outlook"] =
+	Filter(get_pkglibbindir() + "/outlookmsg2html", "text/html");
 
     if (argc == 2 && strcmp(argv[1], "-v") == 0) {
 	// -v was the short option for --version in 1.2.3 and earlier, but
@@ -1501,6 +1490,23 @@ main(int argc, char **argv)
 	    off_t size = parse_size(optarg);
 	    if (size >= 0) {
 		max_size = size;
+		const char * suffix;
+		// Set lsb to the lowest set bit in max_size.
+		off_t lsb = max_size & -max_size;
+		if (lsb >= off_t(1L << 30)) {
+		    size >>= 30;
+		    suffix = "GB";
+		} else if (lsb >= off_t(1L << 20)) {
+		    size >>= 20;
+		    suffix = "MB";
+		} else if (lsb >= off_t(1L << 10)) {
+		    size >>= 10;
+		    suffix = "KB";
+		} else {
+		    suffix = "B";
+		}
+		pretty_max_size = str(size);
+		pretty_max_size += suffix;
 		break;
 	    }
 	    cerr << PROG_NAME": bad max size '" << optarg << "'" << endl;
@@ -1536,36 +1542,6 @@ main(int argc, char **argv)
     if (!endswith(baseurl, '/')) {
 	baseurl += '/';
     }
-
-    if (optind >= argc || optind + 2 < argc) {
-	cerr << PROG_NAME": you must specify a directory to index.\n"
-"Do this either as a single directory (corresponding to the base URL)\n"
-"or two directories - the first corresponding to the base URL and the second\n"
-"a subdirectory of that to index." << endl;
-	return 1;
-    }
-    root = argv[optind];
-    if (!endswith(root, '/')) {
-	root += '/';
-    }
-    string start_url;
-    if (optind + 2 == argc) {
-	start_url = argv[optind + 1];
-	if (startswith(start_url, '/')) {
-	    // Make relative to root.
-	    if (!startswith(start_url, root)) {
-		cerr << PROG_NAME": '" << argv[optind + 1] << "' "
-		    "is not a subdirectory of '" << argv[optind] << "'."
-		     << endl;
-		return 1;
-	    }
-	    start_url.erase(0, root.size());
-	}
-	if (!endswith(start_url, '/')) {
-	    start_url += '/';
-	}
-    }
-
     string::size_type j;
     j = find_if(baseurl.begin(), baseurl.end(), p_notalnum) - baseurl.begin();
     if (j > 0 && baseurl.substr(j, 3) == "://") {
@@ -1579,7 +1555,8 @@ main(int argc, char **argv)
 	} else {
 	    // Path:
 	    string::size_type path_len = baseurl.size() - k;
-	    // Subtract one to lose the trailing /, unless it's the initial / too.
+	    // Subtract one to lose the trailing /, unless it's the initial /
+	    // too.
 	    if (path_len > 1) --path_len;
 	    site_term = "P" + baseurl.substr(k, path_len);
 	    // Host:
@@ -1594,6 +1571,37 @@ main(int argc, char **argv)
 	// Subtract one to lose the trailing /, unless it's the initial / too.
 	if (path_len > 1) --path_len;
 	site_term = "P" + baseurl.substr(0, path_len);
+    }
+
+    if (optind >= argc || optind + 2 < argc) {
+	cerr << PROG_NAME": you must specify a directory to index.\n"
+"Do this either as a single directory (corresponding to the base URL)\n"
+"or two directories - the first corresponding to the base URL and the second\n"
+"a subdirectory of that to index." << endl;
+	return 1;
+    }
+
+    root = argv[optind];
+    if (!endswith(root, '/')) {
+	root += '/';
+    }
+    if (optind + 2 == argc) {
+	string start_url = argv[optind + 1];
+	if (startswith(start_url, '/')) {
+	    // Make relative to root.
+	    if (!startswith(start_url, root)) {
+		cerr << PROG_NAME": '" << argv[optind + 1] << "' "
+		    "is not a subdirectory of '" << argv[optind] << "'."
+		     << endl;
+		return 1;
+	    }
+	    start_url.erase(0, root.size());
+	}
+	if (!endswith(start_url, '/')) {
+	    start_url += '/';
+	}
+	root += start_url;
+	url_encode_path(baseurl, start_url);
     }
 
     int exitcode = 1;
@@ -1632,7 +1640,7 @@ main(int argc, char **argv)
 	    max_ext_len = max(max_ext_len, mt->first.size());
 	}
 
-	index_directory(root + start_url, baseurl + start_url, depth_limit, mime_map, sample_size);
+	index_directory(root, baseurl, depth_limit, mime_map, sample_size);
 	if (delete_removed_documents && old_docs_not_seen) {
 	    if (verbose) {
 		cout << "Deleting " << old_docs_not_seen << " old documents which weren't found" << endl;

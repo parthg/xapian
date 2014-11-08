@@ -374,7 +374,7 @@ $set{OPT,VALUE}
 	* thousand - the thousands separator ("," by default - localised query
 	  templates may want to set this to ".", " ", or "").
 	* stemmer - which stemming language to use ("english" by default, other
-	  values are as understood by Xapian::Stem, so "none" means no
+	  values are as understood by ``Xapian::Stem``, so "none" means no
 	  stemming).
 	* stem_all - if "true", then tell the query parser to stem all words,
 	  even capitalised ones.
@@ -495,6 +495,11 @@ $slice{LIST,POSITIONS}
 	 "$slice{LIST,1	3}" = "b	d"
 	 "$slice{LIST,$range{1,3}}" = "b	c	d"
 	 "$slice{LIST,$range{-10,10}}" = "a	b	c	d"
+
+$snippet{TEXT[,LENGTH]}
+	Generate a context-sensitive snippet from ``TEXT`` using the
+	``Xapian::Snipper`` class.  The snippet will be at most ``LENGTH``
+	bytes long (default: 200).
 
 $split{STRING}
 

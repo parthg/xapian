@@ -386,7 +386,7 @@ Query::Internal::unserialise(const char ** p, const char * end,
 	    }
 	    unsigned char code = (ch >> 3) & 0x0f;
 	    Xapian::termcount parameter = 0;
-	    if (code >= 5)
+	    if (code >= 13)
 		parameter = decode_length(p, end, false);
 	    Xapian::Internal::QueryBranch * result;
 	    switch (code) {
@@ -645,21 +645,9 @@ PostingIterator::Internal *
 QueryTerm::postlist(QueryOptimiser * qopt, double factor) const
 {
     LOGCALL(QUERY, PostingIterator::Internal *, "QueryTerm::postlist", qopt | factor);
-    bool weighted = false;
-    if (factor != 0.0) {
+    if (factor != 0.0)
 	qopt->inc_total_subqs();
-	if (!term.empty())
-	    weighted = true;
-    }
-
-    AutoPtr<Xapian::Weight> wt(weighted ? qopt->make_wt(term, wqf, factor) : 0);
-
-    AutoPtr<LeafPostList> pl(
-	qopt->open_post_list(term, weighted ? wt->get_maxpart() : 0.0));
-
-    if (weighted)
-	pl->set_termweight(wt.release());
-    RETURN(pl.release());
+    RETURN(qopt->open_post_list(term, wqf, factor));
 }
 
 PostingIterator::Internal *
@@ -873,7 +861,7 @@ QueryBranch::serialise_(string & result, Xapian::termcount parameter) const
 	result += ch;
 	if (subqueries.size() >= 9)
 	    result += encode_length(subqueries.size() - 9);
-	if (ch >= MULTIWAY(5))
+	if (ch >= MULTIWAY(13))
 	    result += encode_length(parameter);
     } else {
 	result += ch;

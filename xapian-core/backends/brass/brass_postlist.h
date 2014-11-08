@@ -3,7 +3,7 @@
  */
 /* Copyright 1999,2000,2001 BrightStation PLC
  * Copyright 2002 Ananova Ltd
- * Copyright 2002,2003,2004,2005,2007,2008,2009,2011,2013 Olly Betts
+ * Copyright 2002,2003,2004,2005,2007,2008,2009,2011,2013,2014 Olly Betts
  * Copyright 2007,2009 Lemur Consulting Ltd
  *
  * This program is free software; you can redistribute it and/or
@@ -45,7 +45,10 @@ class BrassDatabase;
 namespace Brass {
     class PostlistChunkReader;
     class PostlistChunkWriter;
+    class RootInfo;
 }
+
+using Brass::RootInfo;
 
 class BrassPostList;
 
@@ -71,9 +74,10 @@ class BrassPostListTable : public BrassTable {
 	      doclen_pl()
 	{ }
 
-	bool open(int flags_, brass_revision_number_t revno) {
+	void open(int flags_, const RootInfo & root_info,
+		  brass_revision_number_t rev) {
 	    doclen_pl.reset(0);
-	    return BrassTable::open(flags_, revno);
+	    BrassTable::open(flags_, root_info, rev);
 	}
 
 	/// Merge changes for a term.
@@ -101,17 +105,17 @@ class BrassPostListTable : public BrassTable {
 	    return key_exists(make_key(term));
 	}
 
-	/** Returns number of docs indexed by @a term.
+	/** Returns frequencies for a term.
 	 *
-	 *  This is the length of the postlist.
+	 *  @param term		The term to get frequencies for
+	 *  @param termfreq_ptr	Point to return number of docs indexed by @a
+	 *			term (or NULL not to return)
+	 *  @param collfreq_ptr	Point to return number of occurrences of @a
+	 *			term in the database (or NULL not to return)
 	 */
-	Xapian::doccount get_termfreq(const std::string & term) const;
-
-	/** Returns the number of occurrences of @a term in the database.
-	 *
-	 *  This is the sum of the wdfs in the postlist.
-	 */
-	Xapian::termcount get_collection_freq(const std::string & term) const;
+	void get_freqs(const std::string & term,
+		       Xapian::doccount * termfreq_ptr,
+		       Xapian::termcount * collfreq_ptr) const;
 
 	/** Returns the length of document @a did. */
 	Xapian::termcount get_doclength(Xapian::docid did,

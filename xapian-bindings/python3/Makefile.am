@@ -13,6 +13,12 @@ AM_TESTS_ENVIRONMENT = \
 	export PYTHON3 ;
 LOG_COMPILER = '$(srcdir)'/run-python-test
 
+RST_DOCS = \
+	docs/examples.rst \
+	docs/index.rst \
+	docs/introduction.rst \
+	docs/xapian.rst
+
 # FIXME: replicationtest.py attempts to test performing replication whilst
 # modifications are in progress.  However, it sometimes fails due to a race
 # condition in it.  It also contains hard-coded paths to the replication
@@ -28,8 +34,7 @@ EXTRA_DIST = python.i util.i extra.i extracomments.i except.i \
 	run-python-test \
 	testsuite.py \
 	test_xapian_star.py \
-	docs/index.rst \
-	$(TESTS) $(BUILT_SOURCES)
+	$(TESTS) $(BUILT_SOURCES) $(RST_DOCS)
 
 pkgpylibdir = @PYTHON3_LIB@/xapian
 
@@ -67,7 +72,7 @@ _xapian_la_LIBADD = $(XAPIAN_LIBS) $(PYTHON3_LIBS)
 # in a "xapian" directory and be treated as a package.  Finally, we take this
 # opportunity to insert a module doc string at the top of the file.
 xapian/__init__.py: modern/xapian.py
-	-test -d xapian || mkdir xapian
+	$(MKDIR_P) xapian
 	cat '$(srcdir)/module_top.py' `test -f modern/xapian.py || echo '$(srcdir)/'`modern/xapian.py > xapian/__init__.pyT
 	mv xapian/__init__.pyT xapian/__init__.py
 
@@ -82,7 +87,7 @@ xapian/__pycache__/__init__.@PYTHON3_CACHE_TAG@.pyo: xapian/__init__.py xapian/_
 	PYTHONPATH=".:$$PYTHONPATH" $(PYTHON3) -O -c "import xapian"
 
 xapian/_xapian$(PYTHON3_SO): _xapian.la
-	-test -d xapian || mkdir xapian
+	$(MKDIR_P) xapian
 	$(LIBTOOL) --config > libtoolconfig.tmp
 ## ksh requires a path on the sourced file.
 	. ./libtoolconfig.tmp; cp $$objdir/_xapian$(PYTHON3_SO) xapian
@@ -124,11 +129,12 @@ endif
 
 stamp = modern/xapian_wrap.stamp
 RUN_SWIG = stamp='$(stamp)' $(PERL) '$(top_srcdir)'/swig-depcomp $(SWIG)
+SWIG_FLAGS += -DSWIG_PYTHON_LEGACY_BOOL
 
 modern/xapian_wrap.cc modern/xapian_wrap.h modern/xapian.py modern/xapian_wrap.d: $(stamp)
 	$(make_many_locked)
 $(stamp): except.i doccomments.i
-	-test -d modern || mkdir modern
+	$(MKDIR_P) modern
 	$(multitarget_begin)
 	$(RUN_SWIG) $(SWIG_WERROR) -I. -I'$(srcdir)' $(SWIG_FLAGS) -c++ \
 	    -python -threads -shadow -modern -O -outdir modern \
@@ -149,13 +155,19 @@ dist_exampledata_DATA = \
 	docs/examples/simplematchdecider.py \
 	docs/examples/simplesearch.py
 
-docdatadir = $(docdir)/python
+sphinxdocs = docs/html/index.html
+
+dist-hook:
+	$(MKDIR_P) '$(distdir)/docs'
+	cp -R -p docs/html $(distdir)/docs
+
+install-data-local:
+	$(mkinstalldirs) $(DESTDIR)$(docdir)/python
+	cp -R -p docs/html $(DESTDIR)$(docdir)/python
 
 if DOCUMENTATION_RULES
-docdata_DATA = docs/index.html
-BUILT_SOURCES += docs/index.html
+all-local: $(sphinxdocs)
 
-.rst.html:
-	-case "$@" in */*) d=`echo "$@"|sed 's,/[^/]*$$,,'`; test -d "$$d" || mkdir "$$d" ;; esac
-	$(RST2HTML) --exit-status=warning $< $@
+$(sphinxdocs): xapian/__init__.py docs/conf.py $(RST_DOCS) $(dist_exampledata_DATA)
+	PYTHONPATH=..:$$PYTHONPATH $(PYTHON3) $(SPHINX_BUILD) -b html -d doctrees -c docs $(srcdir)/docs docs/html
 endif

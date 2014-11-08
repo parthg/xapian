@@ -104,17 +104,17 @@ MSet
 MSet objects have some additional methods to simplify access (these
 work using the C++ array dereferencing):
 
-+----------------------------------+----------------------------------------+
-| Method name                      |            Explanation                 |
-+==================================+========================================+
-| ``get_hit(index)``               |  returns MSetItem at index             |
-+----------------------------------+----------------------------------------+
-|``get_documentPercentage(index)`` | ``convert_to_percent(get_hit(index))`` |
-+----------------------------------+----------------------------------------+
-| ``get_document(index)``          | ``get_hit(index):get_document()``      |
-+----------------------------------+----------------------------------------+
-| ``get_docid(index)``             | ``get_hit(index):get_docid()``         |
-+----------------------------------+----------------------------------------+
++-----------------------------------+----------------------------------------+
+| Method name                       |            Explanation                 |
++===================================+========================================+
+| ``get_hit(index)``                |  returns MSetItem at index             |
++-----------------------------------+----------------------------------------+
+| ``get_documentPercentage(index)`` | ``convert_to_percent(get_hit(index))`` |
++-----------------------------------+----------------------------------------+
+| ``get_document(index)``           | ``get_hit(index):get_document()``      |
++-----------------------------------+----------------------------------------+
+| ``get_docid(index)``              | ``get_hit(index):get_docid()``         |
++-----------------------------------+----------------------------------------+
 
 The C++ API contains a few non-class functions (the Database factory
 functions, and some functions reporting version information), which are
@@ -142,6 +142,9 @@ So ``Xapian::DB_CREATE_OR_OPEN`` is available as
 ``xapian.DB_CREATE_OR_OPEN``, ``Xapian::Query::OP_OR`` is
 available as ``xapian.Query_OP_OR``, and so on.
 
+As of 1.3.2, you can also use the form ``xapian.ClassName.CONSTANT_NAME``, e.g.
+``xapian.Query.OP_OR``.
+
 Query
 #####
 
@@ -158,10 +161,11 @@ and you can specify a mixture of terms and queries if you wish.  For example:
 MatchAll and MatchNothing
 #########################
 
-These are wrapped for Lua as
-``xapian.Query_MatchAll`` and
+These are wrapped for Lua as ``xapian.Query_MatchAll`` and
 ``xapian.Query_MatchNothing``.
 
+As of 1.3.2, you can also use the forms ``xapian.Query.MatchAll`` and
+``xapian.Query.MatchNothing``.
 
 Enquire
 #######

@@ -3,7 +3,7 @@
  */
 /* Copyright (C) 2007,2008,2009,2010,2011,2012 Olly Betts
  * Copyright (C) 2009 Lemur Consulting Ltd
- * Copyright (C) 2013 Aarsh Shah
+ * Copyright (C) 2013,2014 Aarsh Shah
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -635,8 +635,9 @@ class XAPIAN_VISIBILITY_DEFAULT InL2Weight : public Weight {
     /// The upper bound on the weight a term can give to a document.
     double upper_bound;
 
-    /// The factor to multiply with the weight.
-    double factor;
+    /// The constant values which are used on every call to get_sumpart().
+    double wqf_product_idf;
+    double c_product_avlen;
 
     InL2Weight * clone() const;
 
@@ -703,8 +704,10 @@ class XAPIAN_VISIBILITY_DEFAULT IfB2Weight : public Weight {
     /// The upper bound on the weight.
     double upper_bound;
 
-    /// The factor to multiply with the weight.
-    double factor;
+    /// The constant values which are used for calculations in get_sumpart().
+    double wqf_product_idf;
+    double c_product_avlen;
+    double B_constant;
 
     IfB2Weight * clone() const;
 
@@ -772,8 +775,10 @@ class XAPIAN_VISIBILITY_DEFAULT IneB2Weight : public Weight {
     /// The upper bound of the weight.
     double upper_bound;
 
-    /// The factor to multiply with the weight.
-    double factor;
+    /// Constant values used in get_sumpart().
+    double wqf_product_idf;
+    double c_product_avlen;
+    double B_constant;
 
     IneB2Weight * clone() const;
 
@@ -840,8 +845,12 @@ class XAPIAN_VISIBILITY_DEFAULT BB2Weight : public Weight {
     /// The upper bound on the weight.
     double upper_bound;
 
-    /// The factor to multiply with the weight.
-    double factor;
+    /// The constant values to be used in get_sumpart().
+    double c_product_avlen;
+    double B_constant;
+    double wt;
+    double stirling_constant_1;
+    double stirling_constant_2;
 
     BB2Weight * clone() const;
 
@@ -910,8 +919,9 @@ class XAPIAN_VISIBILITY_DEFAULT DLHWeight : public Weight {
     /// The upper bound on the weight.
     double upper_bound;
 
-    /// The factor to multiply with the weight.
-    double factor;
+    /// The constant value to be used in get_sumpart().
+    double log_constant;
+    double wqf_product_factor;
 
     DLHWeight * clone() const;
 
@@ -1045,8 +1055,9 @@ class XAPIAN_VISIBILITY_DEFAULT DPHWeight : public Weight {
     /// The lower bound on the weight.
     double lower_bound;
 
-    /// The factor with which to multiply the weight.
-    double factor;
+    /// The constant value used in get_sumpart() .
+    double log_constant;
+    double wqf_product_factor;
 
     DPHWeight * clone() const;
 

@@ -373,6 +373,37 @@ DEFINE_TESTCASE(bb2weight3, backend) {
 	TEST_EQUAL_DOUBLE(15.0 * mset1[i].get_weight(), mset2[i].get_weight());
     }
 
+    // Test with OP_SCALE_WEIGHT and a small factor (regression test, as we
+    // were applying the factor to the upper bound twice).
+    enquire.set_query(Xapian::Query(Xapian::Query::OP_SCALE_WEIGHT, query, 1.0/1024));
+    enquire.set_weighting_scheme(Xapian::BB2Weight(2.0));
+
+    Xapian::MSet mset3;
+    mset3 = enquire.get_mset(0, 10);
+    TEST_EQUAL(mset3.size(), 5);
+
+    for (int i = 0; i < 5; ++i) {
+	TEST_EQUAL_DOUBLE(mset1[i].get_weight(), mset3[i].get_weight() * 1024);
+    }
+
+    return true;
+}
+
+// Regression test: we used to calculate log2(0) when there was only one doc.
+DEFINE_TESTCASE(bb2weight4, backend) {
+    Xapian::Database db = get_database("apitest_onedoc");
+    Xapian::Enquire enquire(db);
+    Xapian::Query query("word");
+
+    enquire.set_query(query);
+    enquire.set_weighting_scheme(Xapian::BB2Weight());
+
+    Xapian::MSet mset1;
+    mset1 = enquire.get_mset(0, 10);
+    TEST_EQUAL(mset1.size(), 1);
+    // Zero weight is a bit bogus, but what we currently give.
+    TEST_EQUAL_DOUBLE(mset1[0].get_weight(), 0);
+
     return true;
 }
 

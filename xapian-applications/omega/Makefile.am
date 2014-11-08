@@ -80,7 +80,7 @@ AM_CXXFLAGS += $(XAPIAN_CXXFLAGS)
 pkglibbindir = $(pkglibdir)/bin
 pkglibbin_PROGRAMS = omega
 dist_pkglibbin_SCRIPTS = outlookmsg2html
-bin_PROGRAMS = omindex scriptindex
+bin_PROGRAMS = omindex scriptindex omindex-list
 dist_bin_SCRIPTS = dbi2omega htdig2omega mbox2omega
 
 check_PROGRAMS = atomparsetest htmlparsetest jsonesctest md5test urlenctest utf8converttest
@@ -141,8 +141,8 @@ libtransform_la_LIBADD = $(PCRE_LIBS)
 
 omega_SOURCES = omega.cc query.cc cgiparam.cc utils.cc configfile.cc date.cc\
  cdb_init.cc cdb_find.cc cdb_hash.cc cdb_unpack.cc jsonescape.cc loadfile.cc\
- datematchdecider.cc common/str.cc sample.cc unixperm.cc urlencode.cc\
- weight.cc expand.cc
+ datematchdecider.cc common/str.cc sample.cc urlencode.cc weight.cc expand.cc
+# Not currently used, and we ought to handle non-Unix perms too: unixperm.cc
 omega_LDADD =  $(MAGIC_LIBS) $(XAPIAN_LIBS) libtransform.la
 
 omindex_SOURCES = omindex.cc myhtmlparse.cc htmlparse.cc\
@@ -161,6 +161,9 @@ scriptindex_SOURCES = scriptindex.cc myhtmlparse.cc htmlparse.cc\
  common/safe.cc common/stringutils.cc utf8convert.cc utf8truncate.cc\
  common/keyword.cc
 scriptindex_LDADD = $(XAPIAN_LIBS)
+
+omindex_list_SOURCES = omindex-list.cc
+omindex_list_LDADD = $(XAPIAN_LIBS)
 
 atomparsetest_SOURCES = atomparsetest.cc atomparse.cc htmlparse.cc\
  myhtmlparse.cc utf8convert.cc common/keyword.cc
@@ -181,7 +184,7 @@ jsonesctest_SOURCES = jsonesctest.cc jsonescape.cc
 jsonesctest_LDADD = $(XAPIAN_LIBS)
 
 if !MAINTAINER_NO_DOCS
-dist_man_MANS = omindex.1 scriptindex.1
+dist_man_MANS = omindex.1 scriptindex.1 omindex-list.1
 MAINTAINERCLEANFILES = $(dist_man_MANS)
 endif
 
@@ -191,6 +194,9 @@ omindex.1: omindex$(EXEEXT) makemanpage
 
 scriptindex.1: scriptindex$(EXEEXT) makemanpage
 	./makemanpage ./scriptindex $(srcdir)/scriptindex.cc scriptindex.1
+
+omindex-list.1: omindex-list$(EXEEXT) makemanpage
+	./makemanpage ./omindex-list $(srcdir)/omindex-list.cc omindex-list.1
 endif
 
 if MAINTAINER_MODE

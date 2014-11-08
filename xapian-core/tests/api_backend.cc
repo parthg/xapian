@@ -105,6 +105,10 @@ DEFINE_TESTCASE(dbstats1, backend) {
 
     TEST_REL(db.get_wdf_upper_bound("the"),>=,max_wdf);
 
+    // This failed with an assertion during development between 1.3.1 and
+    // 1.3.2.
+    TEST_EQUAL(db.get_wdf_upper_bound(""), 0);
+
     return true;
 }
 
@@ -930,5 +934,27 @@ DEFINE_TESTCASE(notermlist1, brass) {
     db.commit();
     TEST(!file_exists(db_dir + "/termlist.DB"));
     TEST_EXCEPTION(Xapian::FeatureUnavailableError, db.termlist_begin(1));
+    return true;
+}
+
+/// Regression test for bug starting a new brass freelist block.
+DEFINE_TESTCASE(newfreelistblock1, writable) {
+    Xapian::Document doc;
+    doc.add_term("foo");
+    for (int i = 100; i < 120; ++i) {
+	doc.add_term(str(i));
+    }
+
+    Xapian::WritableDatabase wdb(get_writable_database());
+    for (int j = 0; j < 50; ++j) {
+	wdb.add_document(doc);
+    }
+    wdb.commit();
+
+    for (int k = 0; k < 1000; ++k) {
+	wdb.add_document(doc);
+	wdb.commit();
+    }
+
     return true;
 }
