@@ -1,6 +1,7 @@
-/* svmranker.h: The svmranker file.
+/* svmranker.h: The ranker using SVM.
  *
  * Copyright (C) 2012 Parth Gupta
+ * Copyright (C) 2014 Jiarong Wei
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -29,36 +30,50 @@
 
 #include "ranker.h"
 #include "ranklist.h"
-#include "featurevector.h"
-//#include "evalmetric.h"
+#include "feature_vector.h"
 
-#include <list>
-#include <map>
+#include <libsvm/svm.h>
 
-using namespace std;
-
+using std::string;
+using std::vector;
 
 namespace Xapian {
 
 class XAPIAN_VISIBILITY_DEFAULT SVMRanker: public Ranker {
 
-    string model;
-    double weight[];
-  public:
-    SVMRanker() {};
+    struct svm_parameter param;
+    struct svm_problem prob;
+    struct svm_model *model;
+    struct svm_node *x_space;
+    // int cross_validation;
+    // int nr_fold;
 
-    /* Override all the four methods below in the ranker sub-classes files
-     * wiz svmranker.cc , listnet.cc, listmle.cc and so on
-     */
-    std::list<double> rank(const Xapian::RankList & rl);
+    struct svm_node *x;
 
-    void learn_model();
+    int predict_probability;
+    
 
-    void load_model(const std::string & model_file);
+    void read_problem();
 
-    void save_model();
+public:
 
-    double score(const Xapian::FeatureVector & fv);
+    SVMRanker();
+    
+    virtual ~SVMRanker();
+
+    virtual void set_training_data(vector<RankList> & training_data_);
+
+    virtual void learn_model();
+
+    virtual void save_model(const string model_file_);
+
+    virtual void load_model(const string model_file_);
+
+    virtual double score_doc(FeatureVector & fvector);
+
+    virtual RankList calc(RankList & rlist);
+
+    virtual RankList rank(RankList & rlist);
 
 };
 

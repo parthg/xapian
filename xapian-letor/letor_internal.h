@@ -1,7 +1,7 @@
-/** @file letor_internal.h
- * @brief Internals of Xapian::Letor class
- */
-/* Copyright (C) 2011 Parth Gupta
+/* letor_internal.h: The internal class of Xapian::Letor class
+ *
+ * Copyright (C) 2011 Parth Gupta
+ * Copyright (C) 2014 Jiarong Wei
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -25,31 +25,95 @@
 #include <xapian/letor.h>
 #include "ranker.h"
 
-#include <map>
+#include "feature.h"
+#include "feature_manager.h"
+#include "ranker.h"
 
-using namespace std;
+#include <string>
+#include <vector>
+
+using std::string;
+using std::vector;
 
 namespace Xapian {
 
+class Feature;
+class FeatureManager;
+class Ranker;
+
 class Letor::Internal : public Xapian::Internal::intrusive_base {
     friend class Letor;
-    Ranker ranker;
-    Database letor_db;
-    Query letor_query;
-    //vector<Xapian::RankList> samples;
 
-  public:
+    Xapian::Database * database;                // Stored as reference
+    Xapian::Ranker * ranker;
 
-    std::map<Xapian::docid, double>  letor_score(const Xapian::MSet & mset);
+    Xapian::Feature feature;
+    Xapian::FeatureManager feature_manager;
 
-    void letor_learn_model();
-    void prepare_training_file(const std::string & query_file, const std::string & qrel_file, Xapian::doccount msetsize);
-    
-    void prepare_training_file_listwise(const std::string & query_file, int num_features);
-    
-    vector<Xapian::RankList> load_list_ranklist(const char *filename);
+public:
+
+    Internal();
 
 
+    ~Internal();
+
+
+    // ======================= Used for training =========================
+
+
+    // Write the training data to file in text format.
+    static void write_to_txt(vector<Xapian::RankList> list_rlist, const string output_file);
+
+
+    // Write the training data to file in text format. The file's name is "train.txt".
+    static void write_to_txt(vector<Xapian::RankList> list_rlist);
+
+
+    // Wrtie the training data to file in binary format.
+    static void write_to_bin(vector<Xapian::RankList> list_rlist, const string output_file);
+
+
+    // Wrtie the training data to file in binary format. The file's name is "train.bin".
+    static void write_to_bin(vector<Xapian::RankList> list_rlist);
+
+
+    // Read the training data in text format.
+    static vector<Xapian::RankList> read_from_txt(const string training_data_file_);
+
+
+    // Read the training data in binary format.
+    static vector<Xapian::RankList> read_from_bin(const string training_data_file_);
+
+
+    // Connect all parts (since we use reference).
+    void init();
+
+
+    // Set the database.
+    void set_database(Xapian::Database & database_);
+
+
+    // Set the feature.
+    void set_features(const vector<Xapian::Feature::feature_t> & features);
+
+
+    // Set Normalizer.
+    void set_normalizer(Xapian::Normalizer * normalizer_);
+
+
+    // Generate training data from query file and qrel file and store into file.
+    void prepare_training_file(const string query_file_, const string qrel_file_, const string output_file, Xapian::doccount mset_size);
+
+
+    // Use training data to train the model.
+    void train(const string training_data_file_, const string model_file_);
+
+
+    // Load model from file. Call ranker's corresponding functions.
+    void load_model_file(const string model_file_);
+
+    // Attach letor information to MSet.
+    void update_mset(Xapian::Query & query_, Xapian::MSet & mset_);
 };
 
 }

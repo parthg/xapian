@@ -1,13 +1,14 @@
-/** @file letor.cc
- * @brief Letor Class
- */
-/* Copyright (C) 2011 Parth Gupta
- * Copyright (C) 2012 Olly Betts
+/* letor.cc: Letor provides weighting scheme based on Learning to Rank. Note: letor.h is
+ * not a part of official stable Xapian API.
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of the
- * License, or (at your option) any later version.
+ * Copyright (C) 2011 Parth Gupta
+ * Copyright (C) 2012 Olly Betts
+ * Copyright (C) 2014 Jiarong Wei
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -25,69 +26,95 @@
 #include "letor_internal.h"
 #include "ranker.h"
 #include "svmranker.h"
-#include "listmle.h"
-#include "ranklist.h"
+#include "normalizer.h"
+#include "default_normalizer.h"
 
-#include <map>
+#include <iostream>
+#include <cstdlib>
+#include <cstdio>
+
 #include <string>
+#include <vector>
 
-using namespace std;
+using std::string;
+using std::vector;
 
 namespace Xapian {
 
-Letor::Letor(const Letor & o) : internal(o.internal) { }
-
 Letor &
-Letor::operator=(const Letor & o)
-{
+Letor::operator=(const Letor & o) {
     internal = o.internal;
     return *this;
 }
 
-Letor::Letor() : internal(new Letor::Internal) { }
 
-Letor::~Letor() { }
+Letor::Letor(const Letor & o) : internal(o.internal) {}
+
+Letor::Letor() : internal(new Letor::Internal) {
+    internal->init();
+}
+
+Letor::~Letor() {}
 
 
 void
-Letor::set_database(const Xapian::Database & db) {
-    internal->letor_db = db;
+Letor::set_database(Xapian::Database & database_) {
+    internal->set_database(database_);
 }
+
 
 void
-Letor::set_query(const Xapian::Query & query) {
-    internal->letor_query = query;
+Letor::set_features(const vector<Feature::feature_t> & features_) {
+    internal->set_features(features_);
 }
 
-map<Xapian::docid, double>
-Letor::letor_score(const Xapian::MSet & mset) {
-    return internal->letor_score(mset);
-}
 
 void
-Letor::letor_learn_model() {
-    internal->letor_learn_model();
-}
-
-void
-Letor::prepare_training_file(const string & query_file, const string & qrel_file, Xapian::doccount msetsize) {
-    internal->prepare_training_file(query_file, qrel_file, msetsize);
-}
-
-void
-Letor::prepare_training_file_listwise(const string & query_file, int num_features) {
-    internal->prepare_training_file_listwise(query_file, num_features);
-}
-
-void
-Letor::create_ranker(int ranker_type) {
-    switch(ranker_type) {
-        case 0: internal->ranker = * new SVMRanker;
-                break;
-        case 1: internal->ranker = * new ListMLE;
-		break;
-        default: ;//cout<<"Please specify proper ranker.";
+Letor::set_ranker(const Ranker::ranker_t ranker_flag) {
+    switch (ranker_flag) {
+        case Ranker::SVM_RANKER:
+            internal->ranker = new Xapian::SVMRanker();
+            break;
+        default:
+            printf("Ranker flag error!\n");
+            exit(1);
     }
+}
+
+
+void
+Letor::set_normalizer(const Normalizer::normalizer_t normalizer_flag) {
+    switch (normalizer_flag) {
+        case Normalizer::DEFAULT_NORMALIZER:
+            internal->set_normalizer(new Xapian::DefaultNormalizer());
+            break;
+        default:
+            printf("Normalizer flag error!\n");
+            exit(1);
+    }
+}
+
+
+void
+Letor::prepare_training_file(const string query_file, const string qrel_file, const string output_file, Xapian::doccount mset_size) {
+    internal->prepare_training_file(query_file, qrel_file, output_file, mset_size);
+}
+
+
+void
+Letor::load_model_file(const string model_file_) {
+    internal->load_model_file(model_file_);
+}
+
+
+void
+Letor::update_mset(Xapian::Query & query_, Xapian::MSet & mset_) {
+    internal->update_mset(query_, mset_);
+}
+
+void
+Letor::train(const string training_data_file_, const string model_file_) {
+    internal->train(training_data_file_, model_file_);
 }
 
 }

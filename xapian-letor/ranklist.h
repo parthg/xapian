@@ -1,6 +1,7 @@
-/* ranklist.h: The ranklist -- list of feature vectors file.
+/* ranklist.h: RankList which stors list of feature vectors.
  *
  * Copyright (C) 2012 Parth Gupta
+ * Copyright (C) 2014 Jiarong Wei
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -27,42 +28,58 @@
 #include <xapian/types.h>
 #include <xapian/visibility.h>
 
-#include <featurevector.h>
+#include "feature_vector.h"
 
-#include <list>
-#include <map>
+#include <string>
 #include <vector>
 
-using namespace std;
-
+using std::string;
+using std::vector;
 
 namespace Xapian {
 
 class FeatureVector;
 
 class XAPIAN_VISIBILITY_DEFAULT RankList {
-    
 
-  public:
-  
-    std::vector<FeatureVector> rl;
-    
-    std::string qid;
+    vector<FeatureVector> feature_vector_list;
+    string qid;
+    int feature_num;
+
+public:
+
     RankList();
-    
-    void set_qid(std::string qid1);
-    
-    void set_rl(std::vector<FeatureVector> local_rl);
 
-    void add_feature_vector(const Xapian::FeatureVector fv);//was & fv initially,check back later
-
-    std::vector<FeatureVector> normalise();
+    virtual ~RankList();
     
-    std::vector<FeatureVector> sort_by_score();
+    // Set query id
+    void set_qid(string qid_);
     
-    std::vector<FeatureVector> get_data();
+    // Set feature vectors for documents in MSet corresponding to this RankList
+    void set_feature_vector_list(vector<FeatureVector> & feature_vector_list_);
+    
+    // Add a new feature vector
+    void add_feature_vector(FeatureVector fvector_);
 
+    // Get query id
+    string get_qid();
+
+    // Get the number of documents
+    int get_num();
+
+    // Get the number of features
+    int get_feature_num();
+
+    // Get the feature vectors
+    vector<FeatureVector> & get_feature_vector_list();
+
+    // Get text output for this RankList
+    string get_label_feature_values_text();
+
+    // Create letor items
+    vector<Xapian::MSet::letor_item> create_letor_items();
 };
 
 }
+
 #endif /* RANKLIST_H */

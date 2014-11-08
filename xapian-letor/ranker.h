@@ -1,6 +1,7 @@
-/* ranker.h: The abstract ranker file.
+/* ranker.h: The abstract ranker.
  *
  * Copyright (C) 2012 Parth Gupta
+ * Copyright (C) 2014 Jiarong Wei
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -27,50 +28,85 @@
 #include <xapian/types.h>
 #include <xapian/visibility.h>
 
-#include <ranklist.h>
-#include <evalmetric.h>
+#include "ranklist.h"
+#include "feature_vector.h"
 
-#include <list>
-#include <map>
+#include <unistd.h>
+#include <string>
 #include <vector>
 
-
-using namespace std;
-
+using std::string;
+using std::vector;
 
 namespace Xapian {
 
 class XAPIAN_VISIBILITY_DEFAULT Ranker {
 
+protected:
+    vector<Xapian::RankList> training_data;
 
-    std::list<Xapian::RankList> traindata;
-    std::list<Xapian::RankList> validata;
-    std::list<Xapian::RankList> testdata;
+public:
+    // Ranker flag type
+    typedef unsigned int ranker_t;
 
-    Xapian::EvalMetric trainMetric;
-    Xapian::EvalMetric testMetric;
-  public:
-    Ranker();
 
-    /* Override all the four methods below in the ranker sub-classes files
-     * wiz svmranker.cc , listnet.cc, listmle.cc and so on
-     */
-    std::vector<double> rank(const Xapian::RankList & rl);
-    
-    void set_training_data(vector<Xapian::RankList> training_data1);
+    // The flag for different kinds of rankers
+    static const ranker_t SVM_RANKER = 0;
 
-    void learn_model();
+    Ranker() {}
 
-    void load_model(const std::string & model_file);
+    virtual ~Ranker() {}
 
-    void save_model();
 
-    /* This method shoudl read the letor format data and transform into the list of 
-     * Xapian::RankList format
-     */
-    std::list<Xapian::RankList> load_data(const std::string & data_file);
+    // Override all the 7 methods below in the ranker sub=classes files
 
+    //========================= For training ================================
+
+
+    // Set training data
+    virtual void set_training_data(vector<Xapian::RankList> & training_data_) = 0;
+
+
+    // The training process
+    virtual void learn_model() = 0;
+
+
+    // Save model to file
+    virtual void save_model(const string model_file_) = 0;
+
+
+    //========================= For prediction ==============================
+
+
+    // Load model from file
+    virtual void load_model(const string model_file_) = 0;
+
+
+    // Calculate score for a FeatureVector
+    virtual double score_doc(FeatureVector & fv) = 0;
+
+
+    // returns a Xapian::RankList (scores added)
+    virtual Xapian::RankList calc(Xapian::RankList & rlist) = 0;
+
+
+    // returns a SORTED Xapian::RankList (sorted by the score of document)
+    virtual Xapian::RankList rank(Xapian::RankList & rlist) = 0;
+
+
+    //========================= Helper functions ============================
+
+
+    static const int MAXPATHLENTH_SVM = 200;
+
+
+    // Get current working directory
+    static string get_cwd() {
+        char temp[MAXPATHLENTH_SVM];
+        return ( getcwd(temp, MAXPATHLENTH_SVM) ? string( temp ) : string() );
+    }
 };
 
 }
+
 #endif /* RANKER_H */
