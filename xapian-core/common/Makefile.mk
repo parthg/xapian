@@ -5,6 +5,7 @@ noinst_HEADERS +=\
 	common/closefrom.h\
 	common/compression_stream.h\
 	common/debuglog.h\
+	common/errno_to_string.h\
 	common/fd.h\
 	common/filetests.h\
 	common/fileutils.h\
@@ -54,6 +55,7 @@ lib_src +=\
 	common/bitstream.cc\
 	common/closefrom.cc\
 	common/debuglog.cc\
+	common/errno_to_string.cc\
 	common/fileutils.cc\
 	common/io_utils.cc\
 	common/keyword.cc\
@@ -64,10 +66,9 @@ lib_src +=\
 	common/safe.cc\
 	common/serialise-double.cc\
 	common/socket_utils.cc\
-	common/str.cc\
-	common/stringutils.cc
+	common/str.cc
 
-if BUILD_BACKEND_BRASS_OR_CHERT
+if BUILD_BACKEND_CHERT_OR_GLASS
 lib_src +=\
 	common/compression_stream.cc
 endif

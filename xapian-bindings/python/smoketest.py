@@ -1,7 +1,7 @@
 # Simple test to ensure that we can load the xapian module and exercise basic
 # functionality successfully.
 #
-# Copyright (C) 2004,2005,2006,2007,2008,2010,2011,2012,2014 Olly Betts
+# Copyright (C) 2004,2005,2006,2007,2008,2010,2011,2012,2014,2015 Olly Betts
 # Copyright (C) 2007 Lemur Consulting Ltd
 #
 # This program is free software; you can redistribute it and/or
@@ -106,11 +106,6 @@ def test_all():
                      xapian.open_stub, "nosuchdir/nosuchdb")
     expect_exception(xapian.DatabaseOpeningError, None,
                      xapian.open_stub, "nosuchdir/nosuchdb", xapian.DB_OPEN)
-
-    expect_exception(xapian.DatabaseOpeningError, None,
-                     xapian.brass_open, "nosuchdir/nosuchdb")
-    expect_exception(xapian.DatabaseCreateError, None,
-                     xapian.brass_open, "nosuchdir/nosuchdb", xapian.DB_CREATE)
 
     expect_exception(xapian.DatabaseOpeningError, None,
                      xapian.chert_open, "nosuchdir/nosuchdb")
@@ -289,10 +284,10 @@ def test_all():
     qp.set_stemming_strategy(qp.STEM_SOME)
     qp.set_stemmer(xapian.Stem('en'))
     expect_query(qp.parse_query("foo o", qp.FLAG_PARTIAL),
-                 "(Zfoo@1 AND ((out@2 SYNONYM outsid@2) OR Zo@2))")
+                 "(Zfoo@1 AND ((SYNONYM WILDCARD OR o) OR Zo@2))")
 
     expect_query(qp.parse_query("foo outside", qp.FLAG_PARTIAL),
-                 "(Zfoo@1 AND Zoutsid@2)")
+                 "(Zfoo@1 AND ((SYNONYM WILDCARD OR outside) OR Zoutsid@2))")
 
     # Test supplying unicode strings
     expect_query(xapian.Query(xapian.Query.OP_OR, (u'foo', u'bar')),
@@ -449,6 +444,26 @@ def test_userstem():
     parser.set_stemmer(xapian.Stem(MyStemmer()))
     parser.set_stemming_strategy(xapian.QueryParser.STEM_ALL)
     expect_query(parser.parse_query('color television'), '(clr@1 OR tlvsn@2)')
+
+def test_internal_enums_not_wrapped():
+    leaf_constants = [c for c in dir(xapian.Query) if c.startswith('LEAF_')]
+    expect(leaf_constants, [])
+
+def test_internals_not_wrapped():
+    internals = []
+    for c in dir(xapian):
+        # Skip Python stuff like __file__ and __version__.
+        if c.startswith('__'): continue
+        if c.endswith('_'): internals.append(c)
+        # Skip non-classes
+        if not c[0].isupper(): continue
+        cls = eval('xapian.' + c)
+        if type(cls) != type(object): continue
+        for m in dir(cls):
+            if m.startswith('__'): continue
+            if m.endswith('_'): internals.append(c + '.' + m)
+
+    expect(internals, [])
 
 def test_zz9_check_leaks():
     import gc

@@ -5,7 +5,8 @@
 /.libs
 /.dirstamp
 /snowball
-/allsnowballheaders.h
+/arabic.cc
+/arabic.h
 /armenian.cc
 /armenian.h
 /basque.cc
@@ -50,5 +51,5 @@
 /swedish.h
 /turkish.cc
 /turkish.h
-/generate-allsnowballheaders
 /sbl-dispatch.h
+/stopwords/*.list

@@ -15,6 +15,9 @@ AM_LOG_FLAGS = -n -d safe_mode=off -d enable_dl=on \
 	-d extension_dir='$(abs_builddir)/.libs' \
 	-d include_path='php5$(PHP_PATH_SEPARATOR)$(srcdir)/php5'
 
+installcheck-local:
+	$(MAKE) check AM_LOG_FLAGS=
+
 BUILT_SOURCES =\
 	php5/xapian_wrap.cc\
 	php5/xapian_wrap.h\
@@ -95,9 +98,11 @@ dist_exampledata_DATA =\
 	docs/examples/simplematchdecider.php5
 
 docdatadir = $(docdir)/php
-dist_docdata_DATA = docs/index.html
+docdata_DATA = docs/index.html
 
 if DOCUMENTATION_RULES
+BUILT_SOURCES += docs/index.html
+
 .rst.html:
 	-case "$@" in */*) d=`echo "$@"|sed 's,/[^/]*$$,,'`; $(MKDIR_P) "$$d" ;; esac
 	$(RST2HTML) --exit-status=warning $< $@

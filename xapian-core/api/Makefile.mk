@@ -11,7 +11,6 @@ noinst_HEADERS +=\
 	api/queryvector.h\
 	api/replication.h\
 	api/smallvector.h\
-	api/snipperinternal.h\
 	api/termlist.h\
 	api/vectortermlist.h
 
@@ -20,6 +19,7 @@ EXTRA_DIST +=\
 
 lib_src +=\
 	api/compactor.cc\
+	api/constinfo.cc\
 	api/decvalwtsource.cc\
 	api/documentvaluelist.cc\
 	api/editdistance.cc\
@@ -42,12 +42,10 @@ lib_src +=\
 	api/registry.cc\
 	api/replication.cc\
 	api/smallvector.cc\
-	api/snipper.cc\
 	api/sortable-serialise.cc\
 	api/termiterator.cc\
 	api/termlist.cc\
 	api/valueiterator.cc\
 	api/valuerangeproc.cc\
 	api/valuesetmatchdecider.cc\
-	api/vectortermlist.cc\
-	api/version.cc
+	api/vectortermlist.cc

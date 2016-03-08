@@ -64,15 +64,16 @@ split_words(const string &text, vector<string> &words, char ws = ' ')
 #endif
 
 ProgClient::ProgClient(const string &progname, const string &args,
-		       double timeout_, bool writable)
+		       double timeout_, bool writable, int flags)
 	: RemoteDatabase(run_program(progname, args
 #ifndef __WIN32__
 						   , pid
 #endif
         ),
-			 timeout_, get_progcontext(progname, args), writable)
+			 timeout_, get_progcontext(progname, args), writable,
+			 flags)
 {
-    LOGCALL_CTOR(DB, "ProgClient", progname | args | timeout_ | writable);
+    LOGCALL_CTOR(DB, "ProgClient", progname | args | timeout_ | writable | flags);
 }
 
 string
@@ -171,7 +172,7 @@ ProgClient::run_program(const string &progname, const string &args
     /* throwing an exception is a bad idea, since we're
      * not the original process. */
     _exit(-1);
-#if defined __sgi || defined __xlC__
+#ifdef __xlC__
     // Avoid "missing return statement" warning.
     return 0;
 #endif

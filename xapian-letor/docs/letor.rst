@@ -90,7 +90,7 @@ have to supply some information files like::
     it in such file using basic 'awk' command.
 
     4. Collection Index : Here you supply the path to the index of the corpus
-    generated using `Omega <http://xapian.org/docs/omega/overview.html>`_. If
+    generated using `Omega <https://xapian.org/docs/omega/overview.html>`_. If
     you have 'title' information in the collection with some xml/html tag or so
     then add::
 
@@ -193,7 +193,7 @@ considering 'whole'. The table below shows the complete information:
     +-------------+-----------------------------------------------------------------------------------------------+------------+
 
 One thing that should be noticed is that all the feature values are `normalized
-at Query-Level <http://trac.xapian.org/wiki/GSoC2011/LTR/Notes#QueryLevelNorm>`_.
+at Query-Level <https://trac.xapian.org/wiki/GSoC2011/LTR/Notes#QueryLevelNorm>`_.
 
 .. [Nallapati2004] Nallapati, R. Discriminative models for information retrieval. Proceedings of SIGIR 2004 (pp. 64-71).
 
@@ -351,7 +351,7 @@ Normalizer
 
 1. DefaultNoramalizer: For DefaultNormalizer, one thing that should be noticed
 is that all the feature values are `normalized at Query-Level
-<http://trac.xapian.org/wiki/GSoC2011/LTR/Notes#QueryLevelNorm>`_. That means
+<https://trac.xapian.org/wiki/GSoC2011/LTR/Notes#QueryLevelNorm>`_. That means
 that the values of a particular feature for a particular query are divided by
 its query-level maximum value and hence all the feature values will be between
 0 and 1. This normalization helps for unbiased learning.

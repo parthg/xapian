@@ -1,7 +1,7 @@
 /** @file stem.cc
  *  @brief Implementation of Xapian::Stem API class.
  */
-/* Copyright (C) 2007,2008,2010,2011,2012 Olly Betts
+/* Copyright (C) 2007,2008,2010,2011,2012,2015 Olly Betts
  * Copyright (C) 2010 Evgeny Sizikov
  *
  * This program is free software; you can redistribute it and/or
@@ -27,7 +27,6 @@
 
 #include "steminternal.h"
 
-#include "allsnowballheaders.h"
 #include "keyword.h"
 #include "sbl-dispatch.h"
 
@@ -52,6 +51,9 @@ Stem::Stem(const std::string &language) : internal(0) {
     int l = keyword(tab, language.data(), language.size());
     if (l >= 0) {
 	switch (static_cast<sbl_code>(l)) {
+	    case ARABIC:
+		internal = new InternalStemArabic;
+		return;
 	    case ARMENIAN:
 		internal = new InternalStemArmenian;
 		return;
@@ -152,12 +154,6 @@ Stem::get_description() const
 	desc += "none)";
     }
     return desc;
-}
-
-string
-Stem::get_available_languages()
-{
-    return LANGSTRING;
 }
 
 }

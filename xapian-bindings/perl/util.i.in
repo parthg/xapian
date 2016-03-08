@@ -4,7 +4,7 @@
  * Based on the perl XS wrapper files.
  *
  * Copyright (C) 2009 Kosei Moriyama
- * Copyright (C) 2011,2012,2013 Olly Betts
+ * Copyright (C) 2011,2012,2013,2015 Olly Betts
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -80,6 +80,7 @@ our %EXPORT_TAGS = (
 				 FLAG_SYNONYM
 				 FLAG_AUTO_SYNONYMS
 				 FLAG_AUTO_MULTIWORD_SYNONYMS
+				 FLAG_CJK_NGRAM
 				 FLAG_DEFAULT
 				 ) ],
 		    'qpstem' => [ qw(
@@ -443,7 +444,7 @@ more 'perlish' interface to some common operations, as demonstrated above.
 
 There are some gaps in the POD documentation for wrapped classes, but you
 can read the Xapian C++ API documentation at
-L<http://xapian.org/docs/apidoc/html/annotated.html> for details of
+L<https://xapian.org/docs/apidoc/html/annotated.html> for details of
 these.  Alternatively, take a look at the code in the examples and tests.
 
 If you want to use Xapian and the threads module together, make
@@ -454,7 +455,7 @@ destroyed more than once.
 
 If you encounter problems, or have any comments, suggestions, patches, etc
 please email the Xapian-discuss mailing list (details of which can be found at
-L<http://xapian.org/lists>).
+L<https://xapian.org/lists>).
 
 =head2 EXPORT
 
@@ -729,8 +730,13 @@ advice, bugfixes, and wrapper code for the more obscure classes.
 Alex Bowley E<lt>kilinrax@cpan.orgE<gt>
 
 Please report any bugs/suggestions to E<lt>xapian-discuss@lists.xapian.orgE<gt>
-or use the Xapian bug tracker L<http://xapian.org/bugs>.  Please do
+or use the Xapian bug tracker L<https://xapian.org/bugs>.  Please do
 NOT use the CPAN bug tracker or mail any of the authors individually.
+
+=head1 LICENSE
+
+This program is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
 
 =head1 SEE ALSO
 
@@ -751,7 +757,7 @@ L<Xapian::ValueIterator>,
 L<Xapian::Weight>,
 L<Xapian::WritableDatabase>,
 and
-L<http://xapian.org/>.
+L<https://xapian.org/>.
 
 =cut
 %}

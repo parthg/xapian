@@ -5,7 +5,7 @@ The PHP bindings for Xapian are packaged in the ``xapian``
 extension.  The PHP API provided by this extension largely follows Xapian's C++
 API.  This document lists the differences and additions.
 
-As of Xapian version 1.3.2, these bindings require at least PHP 5.4.
+As of Xapian version 1.3.2, these bindings require at least PHP 5.5.
 (Older versions of PHP are now out of security support, but if you really need
 support for them then Xapian 1.2 supports PHP 5.0 and later).
 
@@ -168,7 +168,6 @@ Database Factory Functions
 
 
 - ``Xapian::Auto::open_stub(file)`` is wrapped as ``Xapian::auto_open_stub(file)`` (now deprecated)
-- ``Xapian::Brass::open()`` is wrapped as ``Xapian::brass_open()`` (now deprecated)
 - ``Xapian::Chert::open()`` is wrapped as ``Xapian::chert_open()`` (now deprecated)
 - ``Xapian::InMemory::open()`` is wrapped as ``Xapian::inmemory_open()``
 - ``Xapian::Remote::open(...)`` is wrapped as ``Xapian::remote_open(...)`` (both the TCP and "program" versions are wrapped - the SWIG wrapper checks the parameter list to decide which to call).

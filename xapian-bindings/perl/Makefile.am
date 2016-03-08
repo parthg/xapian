@@ -13,6 +13,7 @@ TESTS = \
 	t/03podcoverage.t \
 	t/04functions.t \
 	t/10query.t \
+	t/collapse.t \
 	t/create.t \
 	t/databasemodified.t \
 	t/document.t \
@@ -39,6 +40,9 @@ AM_TESTS_ENVIRONMENT = \
 	export XAPIAN_CONFIG ;
 LOG_COMPILER = $(PROVE)
 AM_LOG_FLAGS = -I. -I'$(srcdir)'
+
+installcheck-local:
+	$(MAKE) AM_LOG_FLAGS=
 
 clean-local:
 	rm -rf testdb* auto
@@ -69,9 +73,6 @@ dist_exampledata_DATA = \
 	docs/examples/simpleindex.pl \
 	docs/examples/simplematchdecider.pl \
 	docs/examples/simplesearch.pl
-
-docdatadir = $(docdir)/perl
-dist_docdata_DATA = docs/index.html
 
 perlarchdir = $(PERL_ARCH)/auto/Xapian
 perlarch_LTLIBRARIES = Xapian.la
@@ -149,12 +150,6 @@ BUILT_SOURCES += except.i
 except.i: $(srcdir)/generate-perl-exceptions ../../xapian-core/exception_data.pm
 	$(PERL) -w -I$(srcdir)/../../xapian-core $(srcdir)/generate-perl-exceptions
 
-BUILT_SOURCES += docs/index.html
-docs/index.html: Xapian.pm
-	$(MKDIR_P) docs
-	pod2html Xapian.pm > docs/index.html
-	rm -f pod2htm?.tmp
-
 stamp = xapian_wrap.stamp
 RUN_SWIG = stamp='$(stamp)' $(PERL) '$(top_srcdir)'/swig-depcomp $(SWIG)
 
@@ -172,3 +167,15 @@ $(stamp): except.i
 CLEANFILES = pod2htm?.tmp xapian_wrap.d $(stamp)
 endif
 MAINTAINERCLEANFILES = $(BUILT_SOURCES)
+
+docdatadir = $(docdir)/perl
+docdata_DATA = docs/index.html
+
+if DOCUMENTATION_RULES
+BUILT_SOURCES += docs/index.html
+
+docs/index.html: Xapian.pm
+	$(MKDIR_P) docs
+	pod2html Xapian.pm > docs/index.html
+	rm -f pod2htm?.tmp
+endif

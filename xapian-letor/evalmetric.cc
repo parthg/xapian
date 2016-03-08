@@ -18,29 +18,16 @@
  * USA
  */
 
-#include <xapian.h>
-#include <xapian/intrusive_ptr.h>
-#include <xapian/types.h>
-#include <xapian/visibility.h>
-
-#include <ranklist.h>
 #include <evalmetric.h>
 
-#include <list>
-#include <map>
+namespace Xapian {
 
-using namespace std;
-
-
-using namespace Xapian;
-
-
-EvalMetric::EvalMetric() {
-}
+    EvalMetric::EvalMetric() {
+    }
 
     /* override this in the sub-class like MAP, NDCG, MRR, etc*/
-double
-EvalMetric::score(const Xapian::RankList & /*rl*/) {
-return 1.0;
+    double
+    EvalMetric::score(const Xapian::RankList & /*rl*/) {
+        return 1.0;
+    }
 }
-

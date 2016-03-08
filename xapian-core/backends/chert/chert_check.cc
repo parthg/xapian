@@ -2,7 +2,7 @@
  *
  * Copyright 1999,2000,2001 BrightStation PLC
  * Copyright 2002 Ananova Ltd
- * Copyright 2002,2004,2005,2008,2011,2012,2013,2014 Olly Betts
+ * Copyright 2002,2004,2005,2008,2011,2012,2013,2014,2015 Olly Betts
  * Copyright 2008 Lemur Consulting Ltd
  *
  * This program is free software; you can redistribute it and/or
@@ -151,7 +151,8 @@ ChertTableCheck::block_check(Cursor * C_, int j, int opts)
 
     if (j != GET_LEVEL(p))
 	failure("Block has wrong level");
-    if (dir_end <= DIR_START || dir_end > block_size)
+    // dir_end must be > DIR_START, fit within the block, and be odd.
+    if (dir_end <= DIR_START || dir_end > block_size || (dir_end & 1) != 1)
 	failure("directory end pointer invalid");
 
     if (opts & Xapian::DBCHECK_SHORT_TREE)
@@ -249,7 +250,8 @@ ChertTableCheck::check(const char * tablename, const string & path,
 	} else {
 	    // open() throws an exception if it fails.
 	    B.open();
-	    *rev_ptr = B.get_open_revision_number();
+	    if (rev_ptr)
+		*rev_ptr = B.get_open_revision_number();
 	}
     } catch (const Xapian::DatabaseOpeningError &) {
 	if ((opts & Xapian::DBCHECK_FIX) == 0 ||
@@ -270,7 +272,7 @@ ChertTableCheck::check(const char * tablename, const string & path,
 	if (fd < 0) throw;
 	unsigned char buf[65536];
 	uint4 blocksize = 8192; // Default.
-	size_t read = io_read(fd, (char*)buf, sizeof(buf), 0);
+	size_t read = io_read(fd, (char*)buf, sizeof(buf));
 	if (read > 0) {
 	    int dir_end = DIR_END(buf);
 	    blocksize = dir_end + TOTAL_FREE(buf);
@@ -287,7 +289,7 @@ ChertTableCheck::check(const char * tablename, const string & path,
 	    // Scan for root block.
 	    bool found = false;
 	    for (blk_no = 0;
-		 io_read(fd, (char*)buf, blocksize, 0) == blocksize;
+		 io_read(fd, (char*)buf, blocksize) == blocksize;
 		 ++blk_no) {
 		uint4 rev = REVISION(buf);
 		if (rev_ptr && *rev_ptr) {

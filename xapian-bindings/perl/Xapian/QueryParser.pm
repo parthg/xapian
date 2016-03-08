@@ -64,7 +64,8 @@ searching behaviour:
 
   FLAG_BOOLEAN, FLAG_PHRASE, FLAG_LOVEHATE, FLAG_BOOLEAN_ANY_CASE,
   FLAG_WILDCARD, FLAG_PURE_NOT, FLAG_PARTIAL, FLAG_SPELLING_CORRECTION,
-  FLAG_SYNONYM, FLAG_AUTO_SYNONYMS, FLAG_AUTO_MULTIWORD_SYNONYMS
+  FLAG_SYNONYM, FLAG_AUTO_SYNONYMS, FLAG_AUTO_MULTIWORD_SYNONYMS,
+  FLAG_CJK_NGRAM
 
 To specify multiple flags, "bitwise or" them together (with C<|>).  The
 default flags are C<FLAG_PHRASE|FLAG_BOOLEAN|FLAG_LOVEHATE>
@@ -116,8 +117,8 @@ Returns a string describing this object.
 
 =head1 REFERENCE
 
-  http://www.xapian.org/docs/queryparser.html
-  http://www.xapian.org/docs/sourcedoc/html/classXapian_1_1QueryParser.html
+  https://xapian.org/docs/queryparser.html
+  https://xapian.org/docs/sourcedoc/html/classXapian_1_1QueryParser.html
 
 =cut
 1;

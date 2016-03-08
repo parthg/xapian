@@ -1,7 +1,7 @@
 # Tests of Python-specific parts of the xapian bindings.
 #
 # Copyright (C) 2007 Lemur Consulting Ltd
-# Copyright (C) 2008,2009,2010,2011,2013,2014 Olly Betts
+# Copyright (C) 2008,2009,2010,2011,2013,2014,2015 Olly Betts
 # Copyright (C) 2010,2011 Richard Boulton
 #
 # This program is free software; you can redistribute it and/or
@@ -900,7 +900,7 @@ def test_scale_weight():
     """
     db = setup_database()
     for mult in (0, 1, 2.5):
-        context("checking queries with OP_SCALE_WEIGHT with a multipler of %r" %
+        context("checking queries with OP_SCALE_WEIGHT with a multiplier of %r" %
                 mult)
         query1 = xapian.Query("it")
         query2 = xapian.Query(xapian.Query.OP_SCALE_WEIGHT, query1, mult)
@@ -917,7 +917,7 @@ def test_scale_weight():
             expected = [(int(item.weight * mult * 1000000), item.docid) for item in mset1]
         expect([(int(item.weight * 1000000), item.docid) for item in mset2], expected)
 
-    context("checking queries with OP_SCALE_WEIGHT with a multipler of -1")
+    context("checking queries with OP_SCALE_WEIGHT with a multiplier of -1")
     query1 = xapian.Query("it")
     expect_exception(xapian.InvalidArgumentError,
                      "OP_SCALE_WEIGHT requires factor >= 0",
@@ -1009,14 +1009,19 @@ def test_postingsource():
 
         def init(self, db):
             self.current = -1
+            self.weight = db.get_doccount() + 1
+            self.set_maxweight(self.weight)
 
         def get_termfreq_min(self): return 0
         def get_termfreq_est(self): return int(self.max / 2)
         def get_termfreq_max(self): return self.max
         def next(self, minweight):
             self.current += 2
+            self.weight -= 1.0;
+            self.set_maxweight(self.weight)
         def at_end(self): return self.current > self.max
         def get_docid(self): return self.current
+        def get_weight(self): return self.weight
 
     dbpath = 'db_test_postingsource'
     db = xapian.WritableDatabase(dbpath, xapian.DB_CREATE_OR_OVERWRITE)
@@ -1056,6 +1061,7 @@ def test_postingsource():
     mset = enquire.get_mset(0, 10)
 
     expect([item.docid for item in mset], [1, 3, 5, 7, 9])
+    expect(mset[0].weight, db.get_doccount())
 
     db.close()
     expect(xapian.Database.check(dbpath), 0);
@@ -1082,6 +1088,49 @@ def test_postingsource2():
     mset = enquire.get_mset(0, 10)
 
     expect([item.docid for item in mset], [2, 1, 5, 3, 4, 8, 9, 6, 7, 10])
+
+    db.close()
+    expect(xapian.Database.check(dbpath), 0);
+    shutil.rmtree(dbpath)
+
+def test_postingsource3():
+    """Test that ValuePostingSource can be usefully subclassed.
+
+    """
+    dbpath = 'db_test_postingsource3'
+    db = xapian.WritableDatabase(dbpath, xapian.DB_CREATE_OR_OVERWRITE)
+    vals = (1, 3, 2, 4)
+    for wt in vals:
+        doc = xapian.Document()
+        doc.add_value(1, xapian.sortable_serialise(wt))
+        db.add_document(doc)
+
+    class PyValuePostingSource(xapian.ValuePostingSource):
+        def __init__(self, slot):
+            xapian.ValuePostingSource.__init__(self, slot)
+
+        def init(self, db):
+            xapian.ValuePostingSource.init(self, db)
+            self.current = -1
+            slot = self.get_slot()
+            ub = db.get_value_upper_bound(slot)
+            self.set_maxweight(xapian.sortable_unserialise(ub) ** 3)
+
+        def next(self, minweight):
+            return xapian.ValuePostingSource.next(self, minweight)
+        def get_weight(self):
+            value = self.get_value_it().get_value()
+            return xapian.sortable_unserialise(value) ** 3
+
+    source = PyValuePostingSource(1)
+    query = xapian.Query(source)
+    #del source # Check that query keeps a reference to it.
+
+    enquire = xapian.Enquire(db)
+    enquire.set_query(query)
+    mset = enquire.get_mset(0, 10)
+
+    expect([item.docid for item in mset], [4, 2, 3, 1])
 
     db.close()
     expect(xapian.Database.check(dbpath), 0);

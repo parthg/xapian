@@ -1,7 +1,7 @@
 # exception_data.pm: details of the exception hierarchy used by Xapian.
 package exception_data;
 $copyright = <<'EOF';
-/* Copyright (C) 2003,2004,2006,2007,2008,2009,2011 Olly Betts
+/* Copyright (C) 2003,2004,2006,2007,2008,2009,2011,2015 Olly Betts
  * Copyright (C) 2007 Richard Boulton
  *
  * This program is free software; you can redistribute it and/or
@@ -172,12 +172,21 @@ errorclass(18, 'RangeError', 'RuntimeError', <<'DOC');
  */
 DOC
 
+errorclass(19, 'WildcardError', 'RuntimeError', <<'DOC');
+/** WildcardError indicates an error expanding a wildcarded query.
+ */
+DOC
+
 sub for_each_nothrow {
     my $func = shift @_;
     my $class = '';
     foreach my $header ('include/xapian.h', <include/xapian/*.h>) {
+	local $/ = undef;
 	open H, '<', $header or die $!;
-	while (<H>) {
+	my $header_text = <H>;
+	# Strip comments, which might contain text describing XAPIAN_NOTHROW().
+	$header_text =~ s!/(?:/[^\n]*|\*.*?\*/)! !gs;
+	for (split /\n/, $header_text) {
 	    if (/^\s*class\s+XAPIAN_VISIBILITY_DEFAULT\s+(\w+)/) {
 		$class = "$1::";
 		next;

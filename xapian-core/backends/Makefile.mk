@@ -1,5 +1,6 @@
 noinst_HEADERS +=\
 	backends/alltermslist.h\
+	backends/backends.h\
 	backends/byte_length_strings.h\
 	backends/contiguousalldocspostlist.h\
 	backends/database.h\
@@ -35,7 +36,7 @@ lib_src +=\
         backends/contiguousalldocspostlist.cc\
 	backends/flint_lock.cc
 else
-if BUILD_BACKEND_BRASS
+if BUILD_BACKEND_GLASS
 lib_src +=\
         backends/contiguousalldocspostlist.cc\
 	backends/flint_lock.cc
@@ -54,8 +55,8 @@ endif
 # 6) If it needs to support replication, update backends/databasereplicator.cc
 # 7) Write the backend code!
 
-include backends/brass/Makefile.mk
 include backends/chert/Makefile.mk
+include backends/glass/Makefile.mk
 include backends/inmemory/Makefile.mk
 include backends/multi/Makefile.mk
 include backends/remote/Makefile.mk

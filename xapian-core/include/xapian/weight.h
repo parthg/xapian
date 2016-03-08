@@ -1,7 +1,7 @@
 /** @file weight.h
  * @brief Weighting scheme API.
  */
-/* Copyright (C) 2007,2008,2009,2010,2011,2012 Olly Betts
+/* Copyright (C) 2007,2008,2009,2010,2011,2012,2015 Olly Betts
  * Copyright (C) 2009 Lemur Consulting Ltd
  * Copyright (C) 2013,2014 Aarsh Shah
  *
@@ -35,19 +35,33 @@ class XAPIAN_VISIBILITY_DEFAULT Weight {
   protected:
     /// Stats which the weighting scheme can use (see @a need_stat()).
     typedef enum {
+	/// Number of documents in the collection.
 	COLLECTION_SIZE = 1,
+	/// Number of documents in the RSet.
 	RSET_SIZE = 2,
+	/// Average length of documents in the collection.
 	AVERAGE_LENGTH = 4,
+	/// How many documents the current term is in.
 	TERMFREQ = 8,
+	/// How many documents in the RSet the current term is in.
 	RELTERMFREQ = 16,
+	/// Sum of wqf for terms in the query.
 	QUERY_LENGTH = 32,
+	/// Within-query-frequency of the current term.
 	WQF = 64,
+	/// Within-document-frequency of the current term in the current document.
 	WDF = 128,
+	/// Length of the current document (sum wdf).
 	DOC_LENGTH = 256,
+	/// Lower bound on (non-zero) document lengths.
 	DOC_LENGTH_MIN = 512,
+	/// Upper bound on document lengths.
 	DOC_LENGTH_MAX = 1024,
+	/// Upper bound on wdf.
 	WDF_MAX = 2048,
+	/// Sum of wdf over the whole collection for the current term.
 	COLLECTION_FREQ = 4096,
+	/// Number of unique terms in the current document.
 	UNIQUE_TERMS = 8192
     } stat_flags;
 
@@ -117,6 +131,9 @@ class XAPIAN_VISIBILITY_DEFAULT Weight {
 
   public:
 
+    /// Default constructor, needed by subclass constructors.
+    Weight() : stats_needed() { }
+
     /** Type of smoothing to use with the Language Model Weighting scheme.
      *
      *  Default is TWO_STAGE_SMOOTHING.
@@ -147,7 +164,7 @@ class XAPIAN_VISIBILITY_DEFAULT Weight {
      *  (for example when wrapping the Xapian API for use from another
      *  language) then you can define a static <code>operator delete</code>
      *  method in your subclass as shown here:
-     *  http://trac.xapian.org/ticket/554#comment:1
+     *  https://trac.xapian.org/ticket/554#comment:1
      */
     virtual Weight * clone() const = 0;
 
@@ -186,7 +203,7 @@ class XAPIAN_VISIBILITY_DEFAULT Weight {
      *  (for example when wrapping the Xapian API for use from another
      *  language) then you can define a static <code>operator delete</code>
      *  method in your subclass as shown here:
-     *  http://trac.xapian.org/ticket/554#comment:1
+     *  https://trac.xapian.org/ticket/554#comment:1
      *
      *  @param serialised	A string containing the serialised parameters.
      */
@@ -304,9 +321,6 @@ class XAPIAN_VISIBILITY_DEFAULT Weight {
      */
     Weight(const Weight &);
 
-    /// Default constructor, needed by subclass constructors.
-    Weight() : stats_needed() { }
-
     /// The number of documents in the collection.
     Xapian::doccount get_collection_size() const { return collection_size_; }
 
@@ -408,52 +422,41 @@ class XAPIAN_VISIBILITY_DEFAULT TfIdfWeight : public Weight {
   public:
     /** Construct a TfIdfWeight
      *
-     *  @param normalizations  A three character string indicating the normalizations
-     *                         to be used for the tf(wdf), idf and document weight
-     *                         respectively.
+     *  @param normalizations	A three character string indicating the
+     *				normalizations to be used for the tf(wdf), idf
+     *				and document weight.  (default: "ntn")
      *
-     *                         The first character specifies the normalization
-     *                         for the wdf for which the following normalizations
-     *                         are currently available:
+     * The @a normalizations string works like so:
      *
-     *                         'n':None.      wdfn=wdf
-     *                         'b':Boolean    wdfn=1 if term in document else wdfn=0
-     *                         's':Square     wdfn=wdf*wdf
-     *                         'l':Logarithmic wdfn=1+log<sub>e</sub>(wdf)
+     * @li The first character specifies the normalization for the wdf.  The
+     *     following normalizations are currently supported:
      *
-     *                         The Max-wdf and Augmented Max wdf normalizations aren't yet implemented.
+     *     @li 'n': None.      wdfn=wdf
+     *     @li 'b': Boolean    wdfn=1 if term in document else wdfn=0
+     *     @li 's': Square     wdfn=wdf*wdf
+     *     @li 'l': Logarithmic wdfn=1+log<sub>e</sub>(wdf)
      *
+     *     The Max-wdf and Augmented Max wdf normalizations haven't yet been
+     *     implemented.
      *
-     *                         The second character indicates the normalization
-     *                         for the idf, the following of which are currently
-     *                         available:
+     * @li The second character indicates the normalization for the idf.  The
+     *     following normalizations are currently supported:
      *
-     *                         'n':None   idfn=1
-     *                         't':TfIdf  idfn=log(N/Termfreq) where N is the number of documents in
-     *                                    collection and Termfreq is the number of documents which are
-     *                                    indexed by the term t.
-     *                         'p':Prob   idfn=log((N-Termfreq)/Termfreq)
+     *     @li 'n': None   idfn=1
+     *     @li 't': TfIdf  idfn=log(N/Termfreq) where N is the number of
+     *         documents in collection and Termfreq is the number of documents
+     *         which are indexed by the term t.
+     *     @li 'p': Prob   idfn=log((N-Termfreq)/Termfreq)
      *
+     * @li The third and the final character indicates the normalization for
+     *     the document weight.  The following normalizations are currently
+     *     supported:
      *
-     *                         The third and the final character indicates the
-     *                         normalization for the document weight of which
-     *                         the following are currently available:
+     *     @li 'n': None wtn=tfn*idfn
      *
-     *                         'n':None wtn=tfn*idfn
-     *                         Implementing more normalizations for the weight requires access to
-     *                         statistics such as the weight of all terms in the document indexed by
-     *                         the term in the query. This is not available from the current backend.
-     *
-     *
-     *                         More normalizations for all components can be implemented by
-     *                         changing the backend to acquire the statistics
-     *                         required for the normalizations which are not
-     *                         currently available from Xapian::Weight.
-     *
-     *
-     *                         The default string is "ntn".
+     * Implementing support for more normalizations of each type would require
+     * extending the backend to track more statistics.
      */
-
     explicit TfIdfWeight(const std::string &normalizations);
 
     TfIdfWeight()
@@ -973,15 +976,15 @@ class XAPIAN_VISIBILITY_DEFAULT DLHWeight : public Weight {
 
   public:
     DLHWeight() {
-    need_stat(AVERAGE_LENGTH);
-    need_stat(DOC_LENGTH);
-    need_stat(COLLECTION_SIZE);
-    need_stat(COLLECTION_FREQ);
-    need_stat(WDF);
-    need_stat(WQF);
-    need_stat(WDF_MAX);
-    need_stat(DOC_LENGTH_MIN);
-    need_stat(DOC_LENGTH_MAX);
+	need_stat(AVERAGE_LENGTH);
+	need_stat(DOC_LENGTH);
+	need_stat(COLLECTION_SIZE);
+	need_stat(COLLECTION_FREQ);
+	need_stat(WDF);
+	need_stat(WQF);
+	need_stat(WDF_MAX);
+	need_stat(DOC_LENGTH_MIN);
+	need_stat(DOC_LENGTH_MAX);
     }
 
     std::string name() const;
@@ -1158,7 +1161,7 @@ class XAPIAN_VISIBILITY_DEFAULT LMWeight : public Weight {
     // Parameters for handling negative value of log, and for smoothing.
     double param_log, param_smoothing1, param_smoothing2;
 
-    //Collection weight.
+    // Collection weight.
     double weight_collection;
 
     LMWeight * clone() const;

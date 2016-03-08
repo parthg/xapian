@@ -104,51 +104,6 @@ WritableDatabase open();
 }
 #endif
 
-#ifdef XAPIAN_HAS_BRASS_BACKEND
-/// Database factory functions for the brass backend.
-namespace Brass {
-
-/** Construct a Database object for read-only access to a Brass database.
- *
- * @param dir  pathname of the directory containing the database.
- */
-XAPIAN_DEPRECATED(Database open(const std::string &dir));
-
-inline Database
-open(const std::string &dir)
-{
-    return Database(dir, DB_BACKEND_BRASS);
-}
-
-/** Construct a Database object for update access to a Brass database.
- *
- * @param dir		pathname of the directory containing the database.
- * @param action	determines handling of existing/non-existing database:
- *  - Xapian::DB_CREATE			fail if database already exist,
- *					otherwise create new database.
- *  - Xapian::DB_CREATE_OR_OPEN		open existing database, or create new
- *					database if none exists.
- *  - Xapian::DB_CREATE_OR_OVERWRITE	overwrite existing database, or create
- *					new database if none exists.
- *  - Xapian::DB_OPEN			open existing database, failing if none
- *					exists.
- * @param block_size	the Btree blocksize to use (in bytes), which must be a
- *			power of two between 2048 and 65536 (inclusive).  The
- *			default (also used if an invalid value if passed) is
- *			8192 bytes.  This parameter is ignored when opening an
- *			existing database.
- */
-XAPIAN_DEPRECATED(WritableDatabase open(const std::string &dir, int action, int block_size = 0));
-
-inline WritableDatabase
-open(const std::string &dir, int action, int block_size)
-{
-    return WritableDatabase(dir, action|DB_BACKEND_BRASS, block_size);
-}
-
-}
-#endif
-
 #ifdef XAPIAN_HAS_CHERT_BACKEND
 /// Database factory functions for the chert backend.
 namespace Chert {
@@ -239,7 +194,7 @@ Database open(const std::string &host, unsigned int port, useconds_t timeout = 1
  *				10000ms, which is 10 seconds).
  */
 XAPIAN_VISIBILITY_DEFAULT
-WritableDatabase open_writable(const std::string &host, unsigned int port, useconds_t timeout = 0, useconds_t connect_timeout = 10000);
+WritableDatabase open_writable(const std::string &host, unsigned int port, useconds_t timeout = 0, useconds_t connect_timeout = 10000, int flags = 0);
 
 /** Construct a Database object for read-only access to a remote database
  *  accessed via a program.
@@ -254,6 +209,7 @@ WritableDatabase open_writable(const std::string &host, unsigned int port, useco
  *			then Xapian::NetworkTimeoutError is thrown.  A timeout
  *			of 0 means don't timeout.  (Default is 10000ms, which
  *			is 10 seconds).
+ * @param flags		Xapian::DB_RETRY_LOCK or 0.
  */
 XAPIAN_VISIBILITY_DEFAULT
 Database open(const std::string &program, const std::string &args, useconds_t timeout = 10000);
@@ -270,9 +226,10 @@ Database open(const std::string &program, const std::string &args, useconds_t ti
  *			for any individual operation on the remote database
  *			then Xapian::NetworkTimeoutError is thrown.  (Default
  *			is 0, which means don't timeout).
+ * @param flags		Xapian::DB_RETRY_LOCK or 0.
  */
 XAPIAN_VISIBILITY_DEFAULT
-WritableDatabase open_writable(const std::string &program, const std::string &args, useconds_t timeout = 0);
+WritableDatabase open_writable(const std::string &program, const std::string &args, useconds_t timeout = 0, int flags = 0);
 
 }
 #endif

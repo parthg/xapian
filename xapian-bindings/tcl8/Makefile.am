@@ -13,6 +13,9 @@ AM_TESTS_ENVIRONMENT = \
 	export TCLSH ;
 LOG_COMPILER = $(srcdir)/run-tcl-test
 
+installcheck-local:
+	$(MAKE) check LOG_COMPILER='$(TCLSH)' AM_TESTS_ENVIRONMENT=
+
 EXTRA_DIST = tcl.i except.i \
 	generate-tcl-exceptions \
 	run-tcl-test runtest.tcl \
@@ -69,6 +72,8 @@ docdatadir = $(docdir)/tcl8
 dist_docdata_DATA = docs/index.html
 
 if DOCUMENTATION_RULES
+BUILT_SOURCES += docs/index.html
+
 .rst.html:
 	-case "$@" in */*) d=`echo "$@"|sed 's,/[^/]*$$,,'`; $(MKDIR_P) "$$d" ;; esac
 	$(RST2HTML) --exit-status=warning $< $@

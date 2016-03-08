@@ -27,7 +27,6 @@
 
 #include "chert_version.h"
 #include "io_utils.h"
-#include "omassert.h"
 #include "stringutils.h" // For STRINGIZE() and CONST_STRLEN().
 #include "str.h"
 
@@ -106,7 +105,7 @@ ChertVersion::read_and_check()
     char buf[VERSIONFILE_SIZE + 1];
     size_t size;
     try {
-	size = io_read(fd, buf, VERSIONFILE_SIZE + 1, 0);
+	size = io_read(fd, buf, VERSIONFILE_SIZE + 1);
     } catch (...) {
 	(void)close(fd);
 	throw;
@@ -114,7 +113,8 @@ ChertVersion::read_and_check()
     (void)close(fd);
 
     if (size != VERSIONFILE_SIZE) {
-	CompileTimeAssert(VERSIONFILE_SIZE == VERSIONFILE_SIZE_LITERAL);
+	static_assert(VERSIONFILE_SIZE == VERSIONFILE_SIZE_LITERAL,
+		      "VERSIONFILE_SIZE_LITERAL needs updating");
 	string msg = filename;
 	msg += ": Chert version file should be "
 	       STRINGIZE(VERSIONFILE_SIZE_LITERAL)" bytes, actually ";
@@ -135,7 +135,7 @@ ChertVersion::read_and_check()
 	string msg = filename;
 	msg += ": Chert version file is version ";
 	msg += str(version);
-	msg += " but I only understand "STRINGIZE(CHERT_VERSION);
+	msg += " but I only understand " STRINGIZE(CHERT_VERSION);
 	throw Xapian::DatabaseVersionError(msg);
     }
 
