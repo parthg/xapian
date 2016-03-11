@@ -1027,7 +1027,7 @@ GlassTable::delete_leaf_item(bool repeatedly)
 void
 GlassTable::delete_branch_item(int j)
 {
-    LOGCALL_VOID(DB, "GlassTable::delete_branch_item", j | repeatedly);
+    LOGCALL_VOID(DB, "GlassTable::delete_branch_item", j);
     Assert(writable);
     byte * p = C[j].get_modifiable_p(block_size);
     int c = C[j].c;
@@ -1309,8 +1309,7 @@ GlassTable::add(const string &key, string tag, bool already_compressed)
 	size_t l = (i == m ? residue : (i == 1 ? first_L : L));
 	Assert(cd + l <= block_size);
 	Assert(o + l <= tag_size);
-	kt.set_tag(cd, tag_data + o, l, compressed, (i == m));
-	kt.set_component_of(i);
+	kt.set_tag(cd, tag_data + o, l, compressed, i, m);
 
 	o += l;
 	residue -= l;

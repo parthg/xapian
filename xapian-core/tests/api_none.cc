@@ -2,7 +2,7 @@
  * @brief tests which don't need a backend
  */
 /* Copyright (C) 2009 Richard Boulton
- * Copyright (C) 2009,2010,2011,2013,2014,2015 Olly Betts
+ * Copyright (C) 2009,2010,2011,2013,2014,2015,2016 Olly Betts
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -395,6 +395,242 @@ DEFINE_TESTCASE(subclassablerefcount3, backend) {
 		enq2.add_matchspy(spy);
 		TEST(!gone);
 		enq2.add_matchspy(&spy_auto);
+		TEST(!gone);
+		TEST(!gone_auto);
+	    }
+	    TEST(!gone);
+	}
+	TEST(gone);
+	TEST(!gone_auto);
+    }
+    TEST(gone_auto);
+
+    return true;
+}
+
+class TestStopper : public Xapian::Stopper {
+    DestroyedFlag destroyed;
+
+  public:
+    TestStopper(bool & destroyed_) : destroyed(destroyed_) { }
+
+    bool operator()(const std::string&) const { return true; }
+};
+
+/// Check reference counting of Stopper with QueryParser.
+DEFINE_TESTCASE(subclassablerefcount4, !backend) {
+    bool gone_auto, gone;
+
+    // Simple test of release().
+    {
+	Xapian::Stopper * stopper = new TestStopper(gone);
+	TEST(!gone);
+	Xapian::QueryParser qp;
+	qp.set_stopper(stopper->release());
+	TEST(!gone);
+    }
+    TEST(gone);
+
+    // Test that setting a new stopper causes the previous one to be released.
+    {
+	bool gone0;
+	Xapian::Stopper * stopper0 = new TestStopper(gone0);
+	TEST(!gone0);
+	Xapian::QueryParser qp;
+	qp.set_stopper(stopper0->release());
+	TEST(!gone0);
+
+	Xapian::Stopper * stopper = new TestStopper(gone);
+	TEST(!gone);
+	qp.set_stopper(stopper->release());
+	TEST(gone0);
+	TEST(!gone);
+    }
+    TEST(gone);
+
+    // Check a second call to release() has no effect.
+    {
+	Xapian::Stopper * stopper = new TestStopper(gone);
+	TEST(!gone);
+	Xapian::QueryParser qp;
+	qp.set_stopper(stopper->release());
+	stopper->release();
+	TEST(!gone);
+    }
+    TEST(gone);
+
+    // Test reference counting works, and that a Stopper with automatic
+    // storage works OK.
+    {
+	TestStopper stopper_auto(gone_auto);
+	TEST(!gone_auto);
+	{
+	    Xapian::QueryParser qp1;
+	    {
+		Xapian::QueryParser qp2;
+		Xapian::Stopper * stopper;
+		stopper = new TestStopper(gone);
+		TEST(!gone);
+		qp1.set_stopper(stopper->release());
+		TEST(!gone);
+		qp2.set_stopper(stopper);
+		TEST(!gone);
+		qp2.set_stopper(&stopper_auto);
+		TEST(!gone);
+		TEST(!gone_auto);
+	    }
+	    TEST(!gone);
+	}
+	TEST(gone);
+	TEST(!gone_auto);
+    }
+    TEST(gone_auto);
+
+    return true;
+}
+
+/// Check reference counting of Stopper with TermGenerator.
+DEFINE_TESTCASE(subclassablerefcount5, !backend) {
+    bool gone_auto, gone;
+
+    // Simple test of release().
+    {
+	Xapian::Stopper * stopper = new TestStopper(gone);
+	TEST(!gone);
+	Xapian::TermGenerator indexer;
+	indexer.set_stopper(stopper->release());
+	TEST(!gone);
+    }
+    TEST(gone);
+
+    // Test that setting a new stopper causes the previous one to be released.
+    {
+	bool gone0;
+	Xapian::Stopper * stopper0 = new TestStopper(gone0);
+	TEST(!gone0);
+	Xapian::TermGenerator indexer;
+	indexer.set_stopper(stopper0->release());
+	TEST(!gone0);
+
+	Xapian::Stopper * stopper = new TestStopper(gone);
+	TEST(!gone);
+	indexer.set_stopper(stopper->release());
+	TEST(gone0);
+	TEST(!gone);
+    }
+    TEST(gone);
+
+    // Check a second call to release() has no effect.
+    {
+	Xapian::Stopper * stopper = new TestStopper(gone);
+	TEST(!gone);
+	Xapian::TermGenerator indexer;
+	indexer.set_stopper(stopper->release());
+	stopper->release();
+	TEST(!gone);
+    }
+    TEST(gone);
+
+    // Test reference counting works, and that a Stopper with automatic
+    // storage works OK.
+    {
+	TestStopper stopper_auto(gone_auto);
+	TEST(!gone_auto);
+	{
+	    Xapian::TermGenerator indexer1;
+	    {
+		Xapian::TermGenerator indexer2;
+		Xapian::Stopper * stopper;
+		stopper = new TestStopper(gone);
+		TEST(!gone);
+		indexer1.set_stopper(stopper->release());
+		TEST(!gone);
+		indexer2.set_stopper(stopper);
+		TEST(!gone);
+		indexer2.set_stopper(&stopper_auto);
+		TEST(!gone);
+		TEST(!gone_auto);
+	    }
+	    TEST(!gone);
+	}
+	TEST(gone);
+	TEST(!gone_auto);
+    }
+    TEST(gone_auto);
+
+    return true;
+}
+
+class TestKeyMaker : public Xapian::KeyMaker {
+    DestroyedFlag destroyed;
+
+  public:
+    TestKeyMaker(bool & destroyed_) : destroyed(destroyed_) { }
+
+    string operator()(const Xapian::Document&) const { return string(); }
+};
+
+/// Check reference counting of KeyMaker.
+DEFINE_TESTCASE(subclassablerefcount6, backend) {
+    Xapian::Database db = get_database("apitest_simpledata");
+
+    bool gone_auto, gone;
+
+    // Simple test of release().
+    {
+	Xapian::KeyMaker * keymaker = new TestKeyMaker(gone);
+	TEST(!gone);
+	Xapian::Enquire enq(db);
+	enq.set_sort_by_key(keymaker->release(), false);
+	TEST(!gone);
+    }
+    TEST(gone);
+
+    // Test that setting a new keymaker causes the previous one to be released.
+    {
+	bool gone0;
+	Xapian::KeyMaker * keymaker0 = new TestKeyMaker(gone0);
+	TEST(!gone0);
+	Xapian::Enquire enq(db);
+	enq.set_sort_by_key(keymaker0->release(), false);
+	TEST(!gone0);
+
+	Xapian::KeyMaker * keymaker = new TestKeyMaker(gone);
+	TEST(!gone);
+	enq.set_sort_by_key_then_relevance(keymaker->release(), false);
+	TEST(gone0);
+	TEST(!gone);
+    }
+    TEST(gone);
+
+    // Check a second call to release() has no effect.
+    {
+	Xapian::KeyMaker * keymaker = new TestKeyMaker(gone);
+	TEST(!gone);
+	Xapian::Enquire enq(db);
+	enq.set_sort_by_key(keymaker->release(), false);
+	keymaker->release();
+	TEST(!gone);
+    }
+    TEST(gone);
+
+    // Test reference counting works, and that a KeyMaker with automatic
+    // storage works OK.
+    {
+	TestKeyMaker keymaker_auto(gone_auto);
+	TEST(!gone_auto);
+	{
+	    Xapian::Enquire enq1(db);
+	    {
+		Xapian::Enquire enq2(db);
+		Xapian::KeyMaker * keymaker;
+		keymaker = new TestKeyMaker(gone);
+		TEST(!gone);
+		enq1.set_sort_by_key(keymaker->release(), false);
+		TEST(!gone);
+		enq2.set_sort_by_relevance_then_key(keymaker, false);
+		TEST(!gone);
+		enq2.set_sort_by_key_then_relevance(&keymaker_auto, false);
 		TEST(!gone);
 		TEST(!gone_auto);
 	    }

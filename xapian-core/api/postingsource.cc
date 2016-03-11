@@ -239,8 +239,8 @@ double
 ValueWeightPostingSource::get_weight() const
 {
     Assert(!at_end());
-    Assert(real_started);
-    return sortable_unserialise(*get_value_it());
+    Assert(get_started());
+    return sortable_unserialise(get_value());
 }
 
 ValueWeightPostingSource *
@@ -338,7 +338,7 @@ ValueMapPostingSource::set_default_weight(double wt)
 double
 ValueMapPostingSource::get_weight() const
 {
-    map<string, double>::const_iterator wit = weight_map.find(*get_value_it());
+    map<string, double>::const_iterator wit = weight_map.find(get_value());
     if (wit == weight_map.end()) {
 	return default_weight;
     }

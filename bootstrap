@@ -320,7 +320,7 @@ fi
 
 # If someone's created a directory for common, leave it be.
 if [ -h xapian-letor/common ] || [ ! -d xapian-letor/common ] ; then
-  handle_git_external xapian-letor/.common.git 3c0adf07a179083782ee6b8165a196668f0a1605 .
+  handle_git_external xapian-letor/.common.git d52417d0c7389257e47ed1339fdfd2f4f57efda4 .
   ln -sf .common.git/xapian-core/common xapian-letor/common
 fi
 
@@ -574,6 +574,14 @@ for d in $modules ; do
     revdirs="$d $revdirs"
   fi
 done
+
+case " $* " in
+  *" --help "*|*" --version "*)
+    # Don't generate Makefile if --help or --version specified.
+    trap - EXIT
+    exit 0
+    ;;
+esac
 
 rm -f Makefile.tmp
 cat <<EOF > Makefile.tmp
